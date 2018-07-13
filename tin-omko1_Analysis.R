@@ -57,9 +57,25 @@ split_contents <- function(input_frame) {
 
 data_mlt <- split_contents(data_mlt)
 
+#Re-order factor levels
+data_mlt$Time <- as.numeric(data_mlt$Time)
+data_mlt$Stress[data_mlt$Stress == "None"] <- "0"
+data_mlt$Stress <- factor(data_mlt$Stress,
+                          levels = c("0", "5", "90", "180", "270", "360"))
+
+data_mlt$Strain[data_mlt$Strain == "Pure LB Control"] <- "LB"
+data_mlt$Strain[data_mlt$Strain == "Pure Shocked LB control"] <- "LB Shock"
+data_mlt$Strain[data_mlt$Strain == "LB+PAO1 Control"] <- "PAO1"
+data_mlt$Strain[data_mlt$Strain == "Shocked LB+PAO1 Control"] <- "PAO1 Shock"
+data_mlt$Strain <- factor(data_mlt$Strain, 
+                          levels = c("PAO1", "PAO1 Shock", "S3", "S8", "S11", "S16",
+                                     "R3", "LB", "LB Shock"))
+
 #Make new variable for each indiv growth curve
-data_mlt$Group <- match(paste(data_mlt$Strain, data_mlt$Stress, data_mlt$Rep),
-                    unique(paste(data_mlt$Strain, data_mlt$Stress, data_mlt$Rep)))
+data_mlt$Group <- paste(data_mlt$Strain, data_mlt$Stress,
+                        data_mlt$Rep)
+# data_mlt$Group <- match(paste(data_mlt$Strain, data_mlt$Stress, data_mlt$Rep),
+#                     unique(paste(data_mlt$Strain, data_mlt$Stress, data_mlt$Rep)))
 
 #smooth OD data
 smooth_data <- function(my_data, smooth_over, subset_by) {
@@ -110,21 +126,21 @@ data_out <- summarize(data_grp,
                       maxtime = analyze_curves(sm_od, Time, 
                                                bandwidth = 20, return = "maxtime"))
 
-data_mlt$Time <- as.numeric(data_mlt$Time)
-data_out$maxtime <- as.numeric(data_out$maxtime)
+#Plots to visually inspect peak designation accuracy
+for (start_group in seq(from = 1, to = length(unique(data_mlt$Group)), by = 9)) {
+  my_groups <- unique(data_mlt$Group)[start_group:(start_group+8)]
+  print(ggplot(data = data_mlt[data_mlt$Group %in% my_groups, ],
+               aes(x = Time, y = sm_od)) + geom_line() +
+          facet_wrap(~Group) +
+          geom_point(data = data_out[data_out$Group %in% my_groups, ],
+                     aes(x = maxtime, y = max),
+                     size = 3, pch = 13) +
+          ylab("Smoothed OD600"))
+  ggsave(filename = paste(start_group, "_growcurves.pdf", sep = ""),
+         device = "pdf", width = 8, height = 8, units = "in")
+}
 
-# #Plots to visually inspect peak designation accuracy
-# for (start_group in seq(from = 1, to = 96, by = 9)) {
-#   my_groups <- start_group:(start_group+8)
-#   print(ggplot(data = data_mlt[data_mlt$Group %in% my_groups, ],
-#          aes(x = Time, y = sm_od)) + geom_line() +
-#     geom_point(data = data_out[data_out$Group %in% my_groups, ],
-#                aes(x = maxtime, y = max),
-#                size = 3, pch = 13) +
-#       facet_wrap(~Group))
-# }
-
-#Plotting tests
+#Plots to just look at growth curves
 # for (i in seq(from = 1, to = 287, by = 20)) {
 #   print(ggplot(data = data[data$Group %in% i:(i+19), ], aes(x = Time..s., y = OD600)) +
 #     geom_line() + facet_wrap(~Group))
@@ -132,16 +148,12 @@ data_out$maxtime <- as.numeric(data_out$maxtime)
 #           geom_line() + facet_wrap(~Group))
 # }
 
-data_out$Stress <- factor(data_out$Stress,
-                             levels = c("None", "0", "5", "90", "180", "270", "360"))
-data_out$Strain[data_out$Strain == "Pure LB Control"] <- "LB"
-data_out$Strain[data_out$Strain == "Pure Shocked LB Control"] <- "LB Shock"
-data_out$Strain[data_out$Strain == "LB+PAO1 Control"] <- "PAO1"
-data_out$Strain[data_out$Strain == "Shocked LB+PAO1 Control"] <- "PAO1 Shock"
-
-data_out$Strain <- factor(data_out$Strain, 
-                          levels = c("PAO1", "PAO1 Shock", "S3", "S8", "S11", "S16",
-                                     "R3", "LB", "LB Shock"))
-                                     
-ggplot(data = data_out, aes(x = Stress, y = max)) +
-  geom_point(size = 2) + facet_grid(~Strain)
+#Plots to look at summarized data
+ggplot(data = data_out, aes(x = Strain, y = max, group = Stress, color = Stress)) +
+  geom_point(size = 2, position = position_dodge(0.6)) +
+  ylab("Max OD600 of Peak")
+ggsave(filename = "gc_maxes.pdf", device = "pdf", width = 8, height = 8, units = "in")
+ggplot(data = data_out, aes(x = Strain, y = maxtime, group = Stress, color = Stress)) +
+  geom_point(size = 2, position = position_dodge(0.6)) +
+  ylab("Time of OD600 Peak")
+ggsave(filename = "gc_maxtimes.pdf", device = "pdf", width = 8, height = 8, units = "in")
