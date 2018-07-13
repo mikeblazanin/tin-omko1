@@ -47,7 +47,7 @@ split_contents <- function(input_frame) {
       input_frame$Stress[i] <- subsplit[[1]][2]
     } else {
       input_frame$Strain[i] <- temp
-      input_frame$Stress[i] <- "None"
+      input_frame$Stress[i] <- "(None)"
     }
     input_frame$Rep[i] <- my_split[[i]][length(my_split[[i]])]
   }
@@ -104,18 +104,20 @@ data_grp <- group_by(data_mlt[!is.na(data_mlt$sm_od), ],
                      Group, Strain, Stress, Rep)
 
 #Get OD peak height & time for each growth curve
-my_sub <- data_grp[data_grp$Group == 51, ]
-data_out <- summarize(my_sub, 
+data_out <- summarize(data_grp, 
                       max = analyze_curves(sm_od, Time, 
-                                           bandwidth = 10, return = "max"),
+                                           bandwidth = 20, return = "max"),
                       maxtime = analyze_curves(sm_od, Time, 
-                                               bandwidth = 10, return = "maxtime"))
+                                               bandwidth = 20, return = "maxtime"))
+
+data_mlt$Time <- as.numeric(data_mlt$Time)
+data_out$maxtime <- as.numeric(data_out$maxtime)
 
 # #Plots to visually inspect peak designation accuracy
-# for (start_group in seq(from = 1, to = 287, by = 9)) {
+# for (start_group in seq(from = 1, to = 96, by = 9)) {
 #   my_groups <- start_group:(start_group+8)
-#   print(ggplot(data = data[data$Group %in% my_groups, ],
-#          aes(x = Time..s., y = sm_od)) + geom_line() +
+#   print(ggplot(data = data_mlt[data_mlt$Group %in% my_groups, ],
+#          aes(x = Time, y = sm_od)) + geom_line() +
 #     geom_point(data = data_out[data_out$Group %in% my_groups, ],
 #                aes(x = maxtime, y = max),
 #                size = 3, pch = 13) +
@@ -129,3 +131,17 @@ data_out <- summarize(my_sub,
 #   print(ggplot(data = data[data$Group %in% i:(i+8), ], aes(x = Time..s., y = sm_od)) +
 #           geom_line() + facet_wrap(~Group))
 # }
+
+data_out$Stress <- factor(data_out$Stress,
+                             levels = c("None", "0", "5", "90", "180", "270", "360"))
+data_out$Strain[data_out$Strain == "Pure LB Control"] <- "LB"
+data_out$Strain[data_out$Strain == "Pure Shocked LB Control"] <- "LB Shock"
+data_out$Strain[data_out$Strain == "LB+PAO1 Control"] <- "PAO1"
+data_out$Strain[data_out$Strain == "Shocked LB+PAO1 Control"] <- "PAO1 Shock"
+
+data_out$Strain <- factor(data_out$Strain, 
+                          levels = c("PAO1", "PAO1 Shock", "S3", "S8", "S11", "S16",
+                                     "R3", "LB", "LB Shock"))
+                                     
+ggplot(data = data_out, aes(x = Stress, y = max)) +
+  geom_point(size = 2) + facet_grid(~Strain)
