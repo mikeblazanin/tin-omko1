@@ -92,19 +92,6 @@ spl_data1 <- split_contents(mdata1)
 spl_data2 <- split_contents(mdata2)
 spl_data3 <- split_contents(mdata3)
 
-# #Re-order factor levels
-# data_mlt$Stress[data_mlt$Stress == "None"] <- "0"
-# data_mlt$Stress <- factor(data_mlt$Stress,
-#                           levels = c("0", "5", "90", "180", "270", "360"))
-# 
-# data_mlt$Strain[data_mlt$Strain == "Pure LB Control"] <- "LB"
-# data_mlt$Strain[data_mlt$Strain == "Pure Shocked LB control"] <- "LB Shock"
-# data_mlt$Strain[data_mlt$Strain == "LB+PAO1 Control"] <- "PAO1"
-# data_mlt$Strain[data_mlt$Strain == "Shocked LB+PAO1 Control"] <- "PAO1 Shock"
-# data_mlt$Strain <- factor(data_mlt$Strain, 
-#                           levels = c("PAO1", "PAO1 Shock", "S3", "S8", "S11", "S16",
-#                                      "R3", "LB", "LB Shock"))
-
 #smooth OD data
 smooth_data <- function(my_data, smooth_over, subset_by) {
   #data must be sorted sequentially before fed into function
@@ -195,33 +182,43 @@ view_peaks <- function(data_mlt, data_out) {
   }
 }
 
-view_peaks(grp_data1, out_data1)
+#view_peaks(grp_data1, out_data1)
 view_peaks(grp_data2, out_data2)
-view_peaks(grp_data3, out_data3)
+#view_peaks(grp_data3, out_data3)
 
-my_groups <- unique(data_mlt$Contents)[9]
-test <- data_mlt[data_mlt$Contents %in% my_groups & data_mlt$Time < 40000 &
-                   data_mlt$Time > 39000, ]
-ggplot(data = test, aes(x = Time, y = sm_od)) + geom_line()
-        # geom_point(data = data_out[data_out$Contents %in% my_groups, ],
-        #            aes(x = maxtime, y = max),
-        #            size = 3, pch = 13) +
-        # ylab("Smoothed OD600"))
+# #Re-order factor levels
+# data_mlt$Stress[data_mlt$Stress == "None"] <- "0"
+# data_mlt$Stress <- factor(data_mlt$Stress,
+#                           levels = c("0", "5", "90", "180", "270", "360"))
+# 
+# data_mlt$Strain[data_mlt$Strain == "Pure LB Control"] <- "LB"
+# data_mlt$Strain[data_mlt$Strain == "Pure Shocked LB control"] <- "LB Shock"
+# data_mlt$Strain[data_mlt$Strain == "LB+PAO1 Control"] <- "PAO1"
+# data_mlt$Strain[data_mlt$Strain == "Shocked LB+PAO1 Control"] <- "PAO1 Shock"
+# data_mlt$Strain <- factor(data_mlt$Strain, 
+#                           levels = c("PAO1", "PAO1 Shock", "S3", "S8", "S11", "S16",
+#                                      "R3", "LB", "LB Shock"))
 
-#Plots to just look at growth curves
-# for (i in seq(from = 1, to = 287, by = 20)) {
-#   print(ggplot(data = data[data$Group %in% i:(i+19), ], aes(x = Time..s., y = OD600)) +
-#     geom_line() + facet_wrap(~Group))
-#   print(ggplot(data = data[data$Group %in% i:(i+8), ], aes(x = Time..s., y = sm_od)) +
-#           geom_line() + facet_wrap(~Group))
-# }
+out_data1$phageshock <- factor(out_data1$phageshock,
+                               levels = c(NA, 0, 5, 90, 180, 270, 360))
+out_data2$pctmediashocked <- factor(out_data2$pctmediashocked,
+                                    levels = c(0, 5, 50, 100))
+out_data3$totalpfuinoc <- as.numeric(out_data3$totalpfuinoc)
 
 #Plots to look at summarized data
-ggplot(data = data_out, aes(x = Strain, y = max, group = Stress, color = Stress)) +
+plot1 <- out_data1[out_data1$max > 0.1, ]
+plot1$plot <- paste(plot1$bacteria, plot1$phage,
+                        plot1$bactshock, plot1$mediashock, sep = "_")
+ggplot(data = plot1, aes(x = plot, y = max, group = phageshock, color = phageshock)) +
   geom_point(size = 2, position = position_dodge(0.6)) +
   ylab("Max OD600 of Peak")
-ggsave(filename = "gc_maxes.pdf", device = "pdf", width = 8, height = 8, units = "in")
-ggplot(data = data_out, aes(x = Strain, y = maxtime, group = Stress, color = Stress)) +
-  geom_point(size = 2, position = position_dodge(0.6)) +
-  ylab("Time of OD600 Peak")
-ggsave(filename = "gc_maxtimes.pdf", device = "pdf", width = 8, height = 8, units = "in")
+# ggsave(filename = "gc_maxes.pdf", device = "pdf", width = 8, height = 8, units = "in")
+
+out_data2$plot <- paste(out_data2$bacteria,
+                        out_data2$phage, out_data2$phageshock)
+ggplot(data = out_data2, aes(x = plot, y = max, group = pctmediashocked,
+                             color = pctmediashocked)) +
+         geom_point(size = 2, position = position_dodge(0.6))
+
+ggplot(data = out_data3, aes(x = totalpfuinoc, y = max)) +
+  geom_point(size = 2)
