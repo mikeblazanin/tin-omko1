@@ -11,15 +11,34 @@ layout3[layout3=="LB"] <- NA
 
 #Clean up layout
 layout_cleanup <- function(layout) {
+  #This function takes a layout dataframe with ...'s where info needs to be 
+  #iterated in and does so, while adding _A, _B etc for replicate wells
+  #with the same contents
+  #Wells labeled NA are not filled in (they are empty)
+  
+  #Define a matrix to track well contents we've seen before
+  #So that when they come up again the replicate number can resume
+  #where it left off
+  vals_and_cntr <- matrix(nrow = 0, ncol = 2)
   for (i in 1:nrow(layout)) {
     for (j in 2:ncol(layout)) {
-      if(!is.na(layout[i, j])) {
-        if (nchar(layout[i, j]) > 1) {
+      if(!is.na(layout[i, j])) { #Non-empty well
+        if (nchar(layout[i, j]) > 1) { #Non ... well
           current_val <- layout[i, j]
-          cntr <- 1
+          if (!(current_val %in% vals_and_cntr[, 1])) {
+            #This is the first time we've seen these well contents
+            #So we should start numbering replicates at the beginning
+            vals_and_cntr <- rbind(vals_and_cntr, c(current_val, 1))
+            row <- nrow(vals_and_cntr)
+          } else { 
+            #this isn't the first time we've seen these contents
+            #resume replicate numbering where we left off
+            row <- which(vals_and_cntr[, 1] == current_val)
+          }
         }
-        layout[i, j] <- paste(current_val, LETTERS[cntr], sep = "_")
-        cntr <- cntr + 1
+        layout[i, j] <- paste(current_val, 
+                              LETTERS[as.numeric(vals_and_cntr[row, 2])], sep = "_")
+        vals_and_cntr[row, 2] <- as.numeric(vals_and_cntr[row, 2]) + 1
       }
     }
   }
@@ -32,6 +51,8 @@ cln_lay3 <- layout_cleanup(layout3)
 
 #Merge layout & data
 merge_lay_data <- function(layout, data) {
+  #Tidies (melts) the layout dataframe
+  #Then merges the now-tidy layout & data dataframes
   layout_mlt <- reshape2::melt(layout, id.vars = 1, value.name = "Contents", 
                                variable.name = "column")
   layout_mlt$Well <- paste(layout_mlt[, 1], substr(layout_mlt$column, 2, 
@@ -49,7 +70,7 @@ merge_lay_data <- function(layout, data) {
 #Clean up merged datasets
 clean_mdata <- function(mdata) {
   mdata <- mdata[complete.cases(mdata), ]
-  mdata$Time <- substr(mdata$Time, 1, (nchar(mdata$Time)-1))
+  mdata$Time <- as.numeric(substr(mdata$Time, 1, (nchar(mdata$Time)-1)))
   return(mdata)
 }
 
@@ -59,37 +80,30 @@ mdata3 <- clean_mdata(merge_lay_data(cln_lay3, data3))
 
 #Split contents up
 split_contents <- function(input_frame) {
+  #Splits contents at every underscore
+  #Uses the column name of the first column as the format for new columns
+  # where the split contents are distributed into
   colnames <- strsplit(input_frame$format[1], "_")[[1]]
   input_frame[colnames] <- do.call(rbind, strsplit(input_frame$Contents, "_"))
-  return(subset(input_frame, select=-c(format, Contents)))
+  return(subset(input_frame, select=-c(format)))
 }
 
 spl_data1 <- split_contents(mdata1)
 spl_data2 <- split_contents(mdata2)
 spl_data3 <- split_contents(mdata3)
 
-
-data_mlt <- split_contents(data_mlt)
-
-#Re-order factor levels
-data_mlt$Time <- as.numeric(data_mlt$Time)
-data_mlt$Stress[data_mlt$Stress == "None"] <- "0"
-data_mlt$Stress <- factor(data_mlt$Stress,
-                          levels = c("0", "5", "90", "180", "270", "360"))
-
-data_mlt$Strain[data_mlt$Strain == "Pure LB Control"] <- "LB"
-data_mlt$Strain[data_mlt$Strain == "Pure Shocked LB control"] <- "LB Shock"
-data_mlt$Strain[data_mlt$Strain == "LB+PAO1 Control"] <- "PAO1"
-data_mlt$Strain[data_mlt$Strain == "Shocked LB+PAO1 Control"] <- "PAO1 Shock"
-data_mlt$Strain <- factor(data_mlt$Strain, 
-                          levels = c("PAO1", "PAO1 Shock", "S3", "S8", "S11", "S16",
-                                     "R3", "LB", "LB Shock"))
-
-#Make new variable for each indiv growth curve
-data_mlt$Group <- paste(data_mlt$Strain, data_mlt$Stress,
-                        data_mlt$Rep)
-# data_mlt$Group <- match(paste(data_mlt$Strain, data_mlt$Stress, data_mlt$Rep),
-#                     unique(paste(data_mlt$Strain, data_mlt$Stress, data_mlt$Rep)))
+# #Re-order factor levels
+# data_mlt$Stress[data_mlt$Stress == "None"] <- "0"
+# data_mlt$Stress <- factor(data_mlt$Stress,
+#                           levels = c("0", "5", "90", "180", "270", "360"))
+# 
+# data_mlt$Strain[data_mlt$Strain == "Pure LB Control"] <- "LB"
+# data_mlt$Strain[data_mlt$Strain == "Pure Shocked LB control"] <- "LB Shock"
+# data_mlt$Strain[data_mlt$Strain == "LB+PAO1 Control"] <- "PAO1"
+# data_mlt$Strain[data_mlt$Strain == "Shocked LB+PAO1 Control"] <- "PAO1 Shock"
+# data_mlt$Strain <- factor(data_mlt$Strain, 
+#                           levels = c("PAO1", "PAO1 Shock", "S3", "S8", "S11", "S16",
+#                                      "R3", "LB", "LB Shock"))
 
 #smooth OD data
 smooth_data <- function(my_data, smooth_over, subset_by) {
@@ -113,10 +127,20 @@ smooth_data <- function(my_data, smooth_over, subset_by) {
   return(out_list)
 }
 
-data_mlt$sm_od <- smooth_data(data_mlt$OD600, smooth_over = 10, subset_by = data_mlt$Group)
+spl_data1$sm_od <- smooth_data(spl_data1$OD600, smooth_over = 10,
+                               subset_by = spl_data1$Contents)
+spl_data2$sm_od <- smooth_data(spl_data2$OD600, smooth_over = 10,
+                               subset_by = spl_data2$Contents)
+spl_data3$sm_od <- smooth_data(spl_data3$OD600, smooth_over = 10,
+                               subset_by = spl_data3$Contents)
 
 #extraction function: to get OD peak height and time
 analyze_curves <- function(od_data, time_data, bandwidth = 10, return) {
+  #Takes vectors of the od_data and time_data
+  #Bandwidth is how wide the window should be to look for a peak
+  #Narrower bandwidth will get you an earlier local maxima
+  #Wider bandwidth will get you a later more-global maxima
+  #Designed to be run w/ group_by
   prev_max_pos <- 0
   cnt_max_pos <- bandwidth
   while (cnt_max_pos != prev_max_pos) {
@@ -130,29 +154,59 @@ analyze_curves <- function(od_data, time_data, bandwidth = 10, return) {
 }
 
 #Group data by indiv growth curves
-data_grp <- group_by(data_mlt[!is.na(data_mlt$sm_od), ], 
-                     Group, Strain, Stress, Rep)
+grp_data1 <- dplyr::group_by(spl_data1[!is.na(spl_data1$sm_od), ], 
+                     bacteria, phage, phageshock, bactshock, mediashock, Rep, Contents)
+grp_data2 <- dplyr::group_by(spl_data2[!is.na(spl_data2$sm_od), ],
+                             pctmediashocked, bacteria, phage, phageshock, Rep, Contents)
+grp_data3 <- dplyr::group_by(spl_data3[!is.na(spl_data3$sm_od), ],
+                             bact, phage, totalpfuinoc, Rep, Contents)
+                             
 
 #Get OD peak height & time for each growth curve
-data_out <- summarize(data_grp, 
+out_data1 <- dplyr::summarize(grp_data1, 
                       max = analyze_curves(sm_od, Time, 
                                            bandwidth = 20, return = "max"),
                       maxtime = analyze_curves(sm_od, Time, 
                                                bandwidth = 20, return = "maxtime"))
+out_data2 <- dplyr::summarize(grp_data2, 
+                              max = analyze_curves(sm_od, Time, 
+                                                   bandwidth = 20, return = "max"),
+                              maxtime = analyze_curves(sm_od, Time, 
+                                                       bandwidth = 20, return = "maxtime"))
+out_data3 <- dplyr::summarize(grp_data3, 
+                              max = analyze_curves(sm_od, Time, 
+                                                   bandwidth = 20, return = "max"),
+                              maxtime = analyze_curves(sm_od, Time, 
+                                                       bandwidth = 20, return = "maxtime"))
 
 #Plots to visually inspect peak designation accuracy
-for (start_group in seq(from = 1, to = length(unique(data_mlt$Group)), by = 9)) {
-  my_groups <- unique(data_mlt$Group)[start_group:(start_group+8)]
-  print(ggplot(data = data_mlt[data_mlt$Group %in% my_groups, ],
-               aes(x = Time, y = sm_od)) + geom_line() +
-          facet_wrap(~Group) +
-          geom_point(data = data_out[data_out$Group %in% my_groups, ],
-                     aes(x = maxtime, y = max),
-                     size = 3, pch = 13) +
-          ylab("Smoothed OD600"))
-  ggsave(filename = paste(start_group, "_growcurves.pdf", sep = ""),
-         device = "pdf", width = 8, height = 8, units = "in")
+view_peaks <- function(data_mlt, data_out) {
+  for (start_group in seq(from = 1, to = length(unique(data_mlt$Contents)), by = 9)) {
+    my_groups <- unique(data_mlt$Contents)[start_group:(start_group+8)]
+    print(ggplot(data = data_mlt[data_mlt$Contents %in% my_groups, ],
+                 aes(x = Time, y = sm_od)) + geom_line() +
+            facet_wrap(~Contents) +
+            geom_point(data = data_out[data_out$Contents %in% my_groups, ],
+                       aes(x = maxtime, y = max),
+                       size = 3, pch = 13) +
+            ylab("Smoothed OD600"))
+    # ggsave(filename = paste(start_group, "_growcurves.pdf", sep = ""),
+    #        device = "pdf", width = 8, height = 8, units = "in")
+  }
 }
+
+view_peaks(grp_data1, out_data1)
+view_peaks(grp_data2, out_data2)
+view_peaks(grp_data3, out_data3)
+
+my_groups <- unique(data_mlt$Contents)[9]
+test <- data_mlt[data_mlt$Contents %in% my_groups & data_mlt$Time < 40000 &
+                   data_mlt$Time > 39000, ]
+ggplot(data = test, aes(x = Time, y = sm_od)) + geom_line()
+        # geom_point(data = data_out[data_out$Contents %in% my_groups, ],
+        #            aes(x = maxtime, y = max),
+        #            size = 3, pch = 13) +
+        # ylab("Smoothed OD600"))
 
 #Plots to just look at growth curves
 # for (i in seq(from = 1, to = 287, by = 20)) {
