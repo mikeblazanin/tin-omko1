@@ -1,59 +1,73 @@
 library(ggplot2)
-library(reshape2)
-library(dplyr)
 
-data <- read.csv("Data-Plate Reader-190817.csv", stringsAsFactors = F)
-layout <- read.csv("Data-Plate Reader-190817_layout.csv", stringsAsFactors = F)
+data1 <- read.csv("Data-Plate Reader-190817.csv", stringsAsFactors = F)
+layout1 <- read.csv("Data-Plate Reader-190817_layout.csv", stringsAsFactors = F)
+data2 <- read.csv("Data-Plate Reader-150817.csv", stringsAsFactors = F)
+layout2 <- read.csv("Data-Plate Reader-150817_layout.csv", stringsAsFactors = F)
+data3 <- read.csv("2018-10-12 Growth Curve.csv", stringsAsFactors = F)
+layout3 <- read.csv("2018-10-9 Plate Layout.csv", stringsAsFactors = F)
+
+layout3[layout3=="LB"] <- NA
 
 #Clean up layout
-for (i in 1:nrow(layout)) {
-  for (j in 2:ncol(layout)) {
-    if (!(is.na(layout[i, j]) | nchar(layout[i, j]) < 1)) {
-      current_val <- layout[i, j]
-      cntr <- 1
+layout_cleanup <- function(layout) {
+  for (i in 1:nrow(layout)) {
+    for (j in 2:ncol(layout)) {
+      if(!is.na(layout[i, j])) {
+        if (nchar(layout[i, j]) > 1) {
+          current_val <- layout[i, j]
+          cntr <- 1
+        }
+        layout[i, j] <- paste(current_val, LETTERS[cntr], sep = "_")
+        cntr <- cntr + 1
+      }
     }
-    layout[i, j] <- paste(current_val, LETTERS[cntr], sep = "_")
-    cntr <- cntr + 1
   }
+  return(layout)
 }
 
+cln_lay1 <- layout_cleanup(layout1)
+cln_lay2 <- layout_cleanup(layout2)
+cln_lay3 <- layout_cleanup(layout3)
+
 #Merge layout & data
-layout_mlt <- melt(layout, id.vars = "X", value.name = "Contents")
-layout_mlt$Well <- paste(layout_mlt$X, substr(layout_mlt$variable, 2, 
-                                              nchar(as.character(layout_mlt$variable))), 
-                         sep = "")
+merge_lay_data <- function(layout, data) {
+  layout_mlt <- reshape2::melt(layout, id.vars = 1, value.name = "Contents", 
+                               variable.name = "column")
+  layout_mlt$Well <- paste(layout_mlt[, 1], substr(layout_mlt$column, 2, 
+                                                nchar(as.character(layout_mlt$column))), 
+                           sep = "")
+  
+  data_mlt <- reshape2::melt(data, id.vars = c("Time", "Temperature"), 
+                             variable.name = "Well", value.name = "OD600")
+  data_mlt$Contents <- layout_mlt$Contents[match(as.character(data_mlt$Well), 
+                                                 as.character(layout_mlt$Well))]
+  data_mlt$format <- paste(colnames(layout)[1], "_Rep", sep = "")
+  return(data_mlt)
+}
 
-data_mlt <- melt(data, id.vars = c("Time", "Temperature"), variable.name = "Well",
-                 value.name = "OD600")
-data_mlt$Contents <- layout_mlt$Contents[match(as.character(data_mlt$Well), 
-                                               as.character(layout_mlt$Well))]
+#Clean up merged datasets
+clean_mdata <- function(mdata) {
+  mdata <- mdata[complete.cases(mdata), ]
+  mdata$Time <- substr(mdata$Time, 1, (nchar(mdata$Time)-1))
+  return(mdata)
+}
 
-#Clean up merged dataset
-data_mlt <- data_mlt[complete.cases(data_mlt), ]
-data_mlt$Time <- substr(data_mlt$Time, 1, (nchar(data_mlt$Time)-1))
-data_mlt <- data_mlt[, c("Time", "Temperature", "Contents", "OD600")]
+mdata1 <- clean_mdata(merge_lay_data(cln_lay1, data1))
+mdata2 <- clean_mdata(merge_lay_data(cln_lay2, data2))
+mdata3 <- clean_mdata(merge_lay_data(cln_lay3, data3))
 
 #Split contents up
 split_contents <- function(input_frame) {
-  my_split <- strsplit(input_frame$Contents, "_")
-  input_frame$Strain <- NA
-  input_frame$Stress <- NA
-  input_frame$Rep <- NA
-  for (i in 1:nrow(input_frame)) {
-    temp <- my_split[[i]][1]
-    if (grepl("\\(*\\)", temp)) {
-      subsplit <- strsplit(temp, " ")
-      input_frame$Strain[i] <- subsplit[[1]][1]
-      input_frame$Stress[i] <- subsplit[[1]][2]
-    } else {
-      input_frame$Strain[i] <- temp
-      input_frame$Stress[i] <- "(None)"
-    }
-    input_frame$Rep[i] <- my_split[[i]][length(my_split[[i]])]
-  }
-  input_frame$Stress <- substr(input_frame$Stress, 2, nchar(input_frame$Stress)-1)
-  return(input_frame)
+  colnames <- strsplit(input_frame$format[1], "_")[[1]]
+  input_frame[colnames] <- do.call(rbind, strsplit(input_frame$Contents, "_"))
+  return(subset(input_frame, select=-c(format, Contents)))
 }
+
+spl_data1 <- split_contents(mdata1)
+spl_data2 <- split_contents(mdata2)
+spl_data3 <- split_contents(mdata3)
+
 
 data_mlt <- split_contents(data_mlt)
 
