@@ -183,27 +183,15 @@ view_peaks <- function(data_mlt, data_out) {
 }
 
 #view_peaks(grp_data1, out_data1)
-view_peaks(grp_data2, out_data2)
+#view_peaks(grp_data2, out_data2)
 #view_peaks(grp_data3, out_data3)
-
-# #Re-order factor levels
-# data_mlt$Stress[data_mlt$Stress == "None"] <- "0"
-# data_mlt$Stress <- factor(data_mlt$Stress,
-#                           levels = c("0", "5", "90", "180", "270", "360"))
-# 
-# data_mlt$Strain[data_mlt$Strain == "Pure LB Control"] <- "LB"
-# data_mlt$Strain[data_mlt$Strain == "Pure Shocked LB control"] <- "LB Shock"
-# data_mlt$Strain[data_mlt$Strain == "LB+PAO1 Control"] <- "PAO1"
-# data_mlt$Strain[data_mlt$Strain == "Shocked LB+PAO1 Control"] <- "PAO1 Shock"
-# data_mlt$Strain <- factor(data_mlt$Strain, 
-#                           levels = c("PAO1", "PAO1 Shock", "S3", "S8", "S11", "S16",
-#                                      "R3", "LB", "LB Shock"))
 
 out_data1$phageshock <- factor(out_data1$phageshock,
                                levels = c(NA, 0, 5, 90, 180, 270, 360))
 out_data2$pctmediashocked <- factor(out_data2$pctmediashocked,
                                     levels = c(0, 5, 50, 100))
 out_data3$totalpfuinoc <- as.numeric(out_data3$totalpfuinoc)
+out_data3$totalpfuinoc[is.na(out_data3$totalpfuinoc)] <- 0
 
 #Plots to look at summarized data
 plot1 <- out_data1[out_data1$max > 0.1, ]
@@ -221,4 +209,4 @@ ggplot(data = out_data2, aes(x = plot, y = max, group = pctmediashocked,
          geom_point(size = 2, position = position_dodge(0.6))
 
 ggplot(data = out_data3, aes(x = totalpfuinoc, y = max)) +
-  geom_point(size = 2)
+  geom_point(size = 2) + ylim(0, 1.6)
