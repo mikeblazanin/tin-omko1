@@ -186,27 +186,69 @@ view_peaks <- function(data_mlt, data_out) {
 #view_peaks(grp_data2, out_data2)
 #view_peaks(grp_data3, out_data3)
 
-out_data1$phageshock <- factor(out_data1$phageshock,
-                               levels = c(NA, 0, 5, 90, 180, 270, 360))
-out_data2$pctmediashocked <- factor(out_data2$pctmediashocked,
-                                    levels = c(0, 5, 50, 100))
-out_data3$totalpfuinoc <- as.numeric(out_data3$totalpfuinoc)
-out_data3$totalpfuinoc[is.na(out_data3$totalpfuinoc)] <- 0
-
 #Plots to look at summarized data
-plot1 <- out_data1[out_data1$max > 0.1, ]
-plot1$plot <- paste(plot1$bacteria, plot1$phage,
-                        plot1$bactshock, plot1$mediashock, sep = "_")
-ggplot(data = plot1, aes(x = plot, y = max, group = phageshock, color = phageshock)) +
-  geom_point(size = 2, position = position_dodge(0.6)) +
-  ylab("Max OD600 of Peak")
-# ggsave(filename = "gc_maxes.pdf", device = "pdf", width = 8, height = 8, units = "in")
+plot1 <- out_data1
+plot1$plot <- NA
+for (i in 1:nrow(plot1)) {
+  if (!plot1$phage[i] == "NA") {
+    plot1$plot[i] <- plot1$phageshock[i]
+  } else {
+    if (plot1$bacteria[i]=="NA") {plot1$plot[i] <- "- Ctrl"
+    } else {
+      if (plot1$mediashock[i] == 1) {
+        plot1$plot[i] <- "+ Ctrl Shock"
+      } else {plot1$plot[i] <- "+ Ctrl"}
+    }
+  }
+}
 
-out_data2$plot <- paste(out_data2$bacteria,
-                        out_data2$phage, out_data2$phageshock)
-ggplot(data = out_data2, aes(x = plot, y = max, group = pctmediashocked,
-                             color = pctmediashocked)) +
-         geom_point(size = 2, position = position_dodge(0.6))
+plot1$phageshock <- factor(plot1$phageshock,
+                           levels = c(NA, 0, 5, 90, 180, 270, 360))
+plot1$plot <- factor(plot1$plot,
+                        levels = c("+ Ctrl", "+ Ctrl Shock",
+                                   "0", "5", "90", "180", "270",
+                                   "360", "- Ctrl"))
+plot1$phage <- factor(plot1$phage, levels = c("NA", "R3", "S3", "S8",
+                                              "S11", "S16"))
+plot1 <- plot1[-which(plot1$max < 0.1 & plot1$plot != "- Ctrl"), ]
+
+ggplot(data = plot1, aes(x = plot, y = max, group = phage, color = phage)) +
+  geom_point(size = 2, position = position_dodge(0.6)) +
+  ylab("Max Bacterial Density (OD600)") + xlab("Duration of Heatshock (min)") +
+  scale_colour_discrete(name="Phage Replicate") +
+  theme_bw() + scale_y_continuous(limits = c(0, NA))
+
+#ggsave(filename = "gc_maxes.tiff", width = 8, height = 5, units = "in")
+
+plot2 <- out_data2
+plot2$plot <- paste(out_data2$bacteria,
+                    out_data2$phage, out_data2$phageshock)
+for (i in 1:nrow(plot2)) {
+  if (plot2$bacteria[i] == "NA" & plot2$phage[i] == "NA") {
+    plot2$plot[i] <- "- Ctrl"
+  } else if (plot2$bacteria[i] != "NA" & plot2$phage[i] == "NA") {
+    plot2$plot[i] <- "Bact Only"
+  } else if (plot2$bacteria[i] == "NA" & plot2$phage[i] != "NA") {
+    plot2$plot[i] <- "Phage Only"
+  } else {plot2$plot[i] <- "Bact & Phage"}
+}
+plot2$phageshock <- factor(plot2$phageshock,
+                           levels = c("NA", "0", "5", "360"))
+plot2$pctmediashocked <- factor(plot2$pctmediashocked,
+                                levels = c("0", "5", "50", "100"))
+plot2$plot <- factor(plot2$plot,
+                     levels = c("Bact & Phage", "Bact Only",
+                                "Phage Only", "- Ctrl"))
+
+ggplot(data = plot2, aes(x = plot, y = max, group = pctmediashocked,
+                             color = pctmediashocked, shape = phageshock)) +
+         geom_point(size = 2, position = position_dodge(0.6)) +
+  xlab("")
+
+out_data3$totalpfuinoc[out_data3$totalpfuinoc == "NA"] <- 0
+out_data3$totalpfuinoc <- as.numeric(out_data3$totalpfuinoc)
 
 ggplot(data = out_data3, aes(x = totalpfuinoc, y = max)) +
-  geom_point(size = 2) + ylim(0, 1.6)
+  geom_point(size = 2, pch = 21) + ylim(0, 1.6)
+ggplot(data = out_data3[out_data3$totalpfuinoc > 0, ], aes(x = totalpfuinoc, y = maxtime)) +
+  geom_jitter(height = 0, width = 5, pch = 21, size = 2)
