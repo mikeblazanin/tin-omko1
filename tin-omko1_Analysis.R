@@ -1,4 +1,7 @@
 library(ggplot2)
+library(dplyr)
+
+#Growth curve analysis ----
 
 data1 <- read.csv("Data-Plate Reader-190817.csv", stringsAsFactors = F)
 layout1 <- read.csv("Data-Plate Reader-190817_layout.csv", stringsAsFactors = F)
@@ -166,6 +169,8 @@ out_data3 <- dplyr::summarize(grp_data3,
                               maxtime = analyze_curves(sm_od, Time, 
                                                        bandwidth = 20, return = "maxtime"))
 
+#Growth Curve Figures ----
+
 #Plots to visually inspect peak designation accuracy
 view_peaks <- function(data_mlt, data_out) {
   for (start_group in seq(from = 1, to = length(unique(data_mlt$Contents)), by = 9)) {
@@ -249,6 +254,55 @@ out_data3$totalpfuinoc[out_data3$totalpfuinoc == "NA"] <- 0
 out_data3$totalpfuinoc <- as.numeric(out_data3$totalpfuinoc)
 
 ggplot(data = out_data3, aes(x = totalpfuinoc, y = max)) +
-  geom_point(size = 2, pch = 21) + ylim(0, 1.6)
-ggplot(data = out_data3[out_data3$totalpfuinoc > 0, ], aes(x = totalpfuinoc, y = maxtime)) +
-  geom_jitter(height = 0, width = 5, pch = 21, size = 2)
+  geom_point(size = 2, pch = 21) + ylim(0, 1.6) +
+  labs(x = "Total PFU Inoculated", y = "Max Bacterial Density (OD600)") +
+  theme_bw()
+ggsave(filename = "gc_maxes_varypfu.tiff", width = 8, height = 5, units = "in")
+
+# ggplot(data = out_data3[out_data3$totalpfuinoc > 0, ], aes(x = totalpfuinoc, y = maxtime)) +
+#   geom_jitter(height = 0, width = 5, pch = 21, size = 2)
+
+#Saline ----
+saline_data <- read.csv("Saline-Survival.csv")
+saline_data$Duration.of.shock..m. <- factor(saline_data$Duration.of.shock..m.)
+saline_summary <- dplyr::summarize(group_by(saline_data, Saline.Concentration..M., 
+                                     Duration.of.shock..m.),
+                                   mean = mean(Plate.Count),
+                                   stderr =sd(Plate.Count)/sqrt(n()))
+#Plot all data
+ggplot(data = saline_data, aes(x = Saline.Concentration..M., y = Plate.Count,
+                               color = Duration.of.shock..m., 
+                               group = Duration.of.shock..m.)) +
+  geom_point(position = position_dodge(0.4))
+#Plot summarized data, Saline Conc on x
+ggplot(data = saline_summary, aes(x = Saline.Concentration..M., y = mean,
+                                  color = Duration.of.shock..m., 
+                                  group = Duration.of.shock..m.)) +
+  geom_point(position = position_dodge(0.4)) +
+  theme_bw() + geom_errorbar(aes(x = Saline.Concentration..M.,
+                             ymin = mean-stderr, ymax = mean+stderr),
+                             position = position_dodge(0.4), width = 0.4) +
+  labs(x = "Saline Concentration (M)", y = "Mean PFU") +
+  scale_color_discrete(name = "Duration of Shock (min)")
+#Plot summarized data, Duration on x
+ggplot(data = saline_summary, aes(x = Duration.of.shock..m., y = mean,
+                                  color = Saline.Concentration..M., 
+                                  group = Saline.Concentration..M.)) +
+  geom_point(position = position_dodge(0.4)) +
+  theme_bw() + geom_errorbar(aes(x = Duration.of.shock..m.,
+                                 ymin = mean-stderr, ymax = mean+stderr),
+                             position = position_dodge(0.4), width = 0.4) +
+  labs(x = "Duration of Shock (min)", y = "Mean PFU") +
+  scale_color_discrete(name = "Saline Concentration (M)")
+
+
+#Urea ----
+urea_data <- read.csv("Urea-Survival.csv")
+urea_data$Urea.concentration..M. <- factor(urea_data$Urea.concentration..M.)
+urea_data$Duration.of.shock..m. <- factor(urea_data$Duration.of.shock..m.)
+ggplot(data = urea_data, aes(x = Duration.of.shock..m., y = Plate.count,
+                             group = Urea.concentration..M.,
+                             color = Urea.concentration..M.)) +
+  geom_point(position = position_dodge(0.6))
+
+#
