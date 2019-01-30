@@ -263,8 +263,10 @@ ggsave(filename = "gc_maxes_varypfu.tiff", width = 8, height = 5, units = "in")
 #   geom_jitter(height = 0, width = 5, pch = 21, size = 2)
 
 #Saline ----
-saline_data <- read.csv("Saline-Survival.csv")
+saline_data <- read.csv("Saline-Survival.csv", stringsAsFactors = F)
+saline_data$Saline.Concentration..M.[saline_data$Saline.Concentration..M. == "0.17 (LB)"] <- "0.17"
 saline_data$Duration.of.shock..m. <- factor(saline_data$Duration.of.shock..m.)
+saline_data$Saline.Concentration..M. <- factor(saline_data$Saline.Concentration..M.)
 saline_summary <- dplyr::summarize(group_by(saline_data, Saline.Concentration..M., 
                                      Duration.of.shock..m.),
                                    mean = mean(Plate.Count),
@@ -280,10 +282,12 @@ ggplot(data = saline_summary, aes(x = Saline.Concentration..M., y = mean,
                                   group = Duration.of.shock..m.)) +
   geom_point(position = position_dodge(0.4)) +
   theme_bw() + geom_errorbar(aes(x = Saline.Concentration..M.,
-                             ymin = mean-stderr, ymax = mean+stderr),
+                             ymin = mean-1.96*stderr, ymax = mean+1.96*stderr),
                              position = position_dodge(0.4), width = 0.4) +
   labs(x = "Saline Concentration (M)", y = "Mean PFU") +
   scale_color_discrete(name = "Duration of Shock (min)")
+ggsave(filename = "saline_byconc.tiff", width = 8, height = 5, units = "in")
+
 #Plot summarized data, Duration on x
 ggplot(data = saline_summary, aes(x = Duration.of.shock..m., y = mean,
                                   color = Saline.Concentration..M., 
@@ -300,9 +304,29 @@ ggplot(data = saline_summary, aes(x = Duration.of.shock..m., y = mean,
 urea_data <- read.csv("Urea-Survival.csv")
 urea_data$Urea.concentration..M. <- factor(urea_data$Urea.concentration..M.)
 urea_data$Duration.of.shock..m. <- factor(urea_data$Duration.of.shock..m.)
-ggplot(data = urea_data, aes(x = Duration.of.shock..m., y = Plate.count,
-                             group = Urea.concentration..M.,
-                             color = Urea.concentration..M.)) +
-  geom_point(position = position_dodge(0.6))
+# ggplot(data = urea_data, aes(x = Duration.of.shock..m., y = Plate.count,
+#                              group = Urea.concentration..M.,
+#                              color = Urea.concentration..M.)) +
+#   geom_point(position = position_dodge(0.6))
+ggplot(data = urea_data, aes(x = Urea.concentration..M.,
+                             y = Plate.count,
+                             group = Duration.of.shock..m.,
+                             color = Duration.of.shock..m.)) +
+  geom_point(position = position_dodge(0.4)) +
+  theme_bw()
 
-#
+urea_summary <- dplyr::summarize(group_by(urea_data, Urea.concentration..M.,
+                                            Duration.of.shock..m.),
+                                   mean = mean(Plate.count),
+                                   stderr =sd(Plate.count)/sqrt(n()))
+
+ggplot(data = urea_summary, aes(x = Urea.concentration..M.,
+                                y = mean,
+                                group = Duration.of.shock..m.,
+                                color = Duration.of.shock..m.)) +
+  geom_point(position = position_dodge(0.5)) + theme_bw() + geom_errorbar(aes(x = Urea.concentration..M.,
+                                              ymin = mean-1.96*stderr, ymax = mean+1.96*stderr),
+                                          position = position_dodge(0.5), width = 0.4) +
+  labs(x = "Urea Concentration (M)", y = "Mean PFU") +
+  scale_color_discrete(name = "Duration of Shock (min)")
+ggsave(filename = "urea_byconc.tiff", width = 8, height = 5, units = "in")
