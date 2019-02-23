@@ -172,16 +172,19 @@ out_data3 <- dplyr::summarize(grp_data3,
 #Growth Curve Figures ----
 
 #Plots to visually inspect peak designation accuracy
-view_peaks <- function(data_mlt, data_out) {
-  for (start_group in seq(from = 1, to = length(unique(data_mlt$Contents)), by = 9)) {
-    my_groups <- unique(data_mlt$Contents)[start_group:(start_group+8)]
-    print(ggplot(data = data_mlt[data_mlt$Contents %in% my_groups, ],
-                 aes(x = Time, y = sm_od)) + geom_line() +
-            facet_wrap(~Contents) +
-            geom_point(data = data_out[data_out$Contents %in% my_groups, ],
-                       aes(x = maxtime, y = max),
-                       size = 3, pch = 13) +
-            ylab("Smoothed OD600"))
+view_peaks <- function(data_mlt, data_out, plt_point = TRUE,
+                       numplots = 9, lwd = 1) {
+  for (start_group in seq(from = 1, to = length(unique(data_mlt$Contents)), by = numplots)) {
+    my_groups <- unique(data_mlt$Contents)[start_group:(start_group+numplots-1)]
+    myplot <- ggplot(data = data_mlt[data_mlt$Contents %in% my_groups, ],
+                 aes(x = Time, y = sm_od)) + geom_line(lwd = lwd) +
+            facet_wrap(~Contents) + ylab("Smoothed OD600")
+    if (plt_point) {myplot <- myplot + 
+                              geom_point(data = data_out[data_out$Contents %in% my_groups, ],
+                                                  aes(x = maxtime, y = max),
+                                                  size = 3, pch = 13)
+    }
+    print(myplot)
     # ggsave(filename = paste(start_group, "_growcurves.pdf", sep = ""),
     #        device = "pdf", width = 8, height = 8, units = "in")
   }
@@ -190,6 +193,7 @@ view_peaks <- function(data_mlt, data_out) {
 #view_peaks(grp_data1, out_data1)
 #view_peaks(grp_data2, out_data2)
 #view_peaks(grp_data3, out_data3)
+#view_peaks(grp_data3, out_data3, plt_point = F, numplots = 1, lwd = 2)
 
 #Plots to look at summarized data
 plot1 <- out_data1
