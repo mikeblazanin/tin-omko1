@@ -9,22 +9,24 @@ tempr_sum <- summarize(tempr, plate_count_mean = mean(Plate.count),
                        plate_count_se = sd(Plate.count)/n())
 tempr_sum$Temperature...C. <- as.factor(tempr_sum$Temperature...C.)
 my_colr <- colorRampPalette(colors = c("#ffcc00", "Red"))
-ggplot(data = tempr_sum, aes(x = Duration.of.shock..m., y = plate_count_mean,
+ggplot(data = tempr_sum, aes(x = Duration.of.shock..m., y = plate_count_mean+1,
                              group = Temperature...C., color = Temperature...C.)) +
-  geom_point() + geom_line() +
-  geom_errorbar(aes(ymin = plate_count_mean - 1.96*plate_count_se,
-                    ymax = plate_count_mean + 1.96*plate_count_se),
+  geom_point(size = 3, alpha = 0.7) + geom_line() +
+  geom_errorbar(aes(ymin = 1+plate_count_mean - 1.96*plate_count_se,
+                    ymax = 1+plate_count_mean + 1.96*plate_count_se),
                 width = 5) + 
-  scale_color_manual(values = my_colr(6)) +
+  scale_color_manual(name = "Temperature (°C)", values = my_colr(6)) +
   labs(x = "Duration of heat shock (min)") +
-  theme_bw()
+  theme_bw() +
+  scale_y_continuous(trans="log10") +
+  NULL
+ggsave(filename = "temp_surv.tiff", width = 8, height = 5, units = "in")
 
 #Temperature Duration Survival ----
 temprdur <- read.csv("Temperature-Duration-Survival.csv")
 #Redo titer calculation for safety
 temprdur$Titer <- temprdur$Plate.count * 10**(temprdur$Dilution + 1)
 #Calculate frac survival relative to mean of 0 shock duration
-
 temprdur <- group_by(temprdur, Sample, Duration.of.shock..m.)
 temprdur_sum <- summarize(temprdur, titer_mean = mean(Titer),
                           titer_se = sd(Titer)/n())
@@ -38,6 +40,7 @@ temprdur_sum <- summarize(temprdur, titer_mean = mean(Titer),
 temprdur_sum$pct_mean <- temprdur_sum$frac_mean * 100
 temprdur_sum$pct_se <- temprdur_sum$frac_se * 100
 
+#Make plot
 ggplot(data = temprdur_sum, aes(x = Duration.of.shock..m.,
                                 y = pct_mean,
                                 group = Sample,
@@ -50,9 +53,10 @@ ggplot(data = temprdur_sum, aes(x = Duration.of.shock..m.,
                      labels = c("100", "10", "1", "0.1", "0.01", "0.001",
                                 "0.0001", "0.00001"),
                      trans="log10") +
+  scale_color_discrete(name = "Phage Stock") +
   theme_bw() +
-  labs(x = "Duration of Heat Shock (min)", y = "Percent Survival (%)")
-
+  labs(x = "Duration of 70°C Heat Shock (min)", y = "Percent Survival (%)")
+ggsave(filename = "temp_duration_surv.tiff", width = 8, height = 5, units = "in")
 
 #Growth curve analysis ----
 
@@ -288,13 +292,16 @@ plot1_sum <- summarize(plot1,
                        
 ggplot(data = plot1_sum, aes(x = plot, y = maxpeak_mean,
                              group = phage, color = phage)) +
-  geom_point(position = position_dodge(width = .2)) +
+  geom_point(position = position_dodge(width = .2), size = 2) +
   geom_errorbar(aes(ymax = maxpeak_mean + 1.96*maxpeak_se,
                     ymin = maxpeak_mean - 1.96*maxpeak_se),
-                width = .4, position = position_dodge(width = .2)) +
+                width = .7, position = position_dodge(width = .2)) +
   theme_bw() +
-  labs(x = "Duration of Heat Shock (min)", y = "Peak Bacterial Density (OD600)")
+  labs(x = "Duration of Heat Shock (min)", y = "Peak Bacterial Density (OD600)") +
+  scale_color_discrete(name = "Phage Stock")
+ggsave(filename = "gc_maxes.tiff", width = 8, height = 5, units = "in")
 
+##Plot 2
 plot2 <- out_data2
 plot2$plot <- paste(out_data2$bacteria,
                     out_data2$phage, out_data2$phageshock)
@@ -370,7 +377,7 @@ ggplot(data = saline_summary, aes(x = Duration.of.shock..m., y = mean,
   labs(x = "Duration of Shock (min)", y = "Mean PFU") +
   scale_color_manual(name = "Saline Concentration (M)",
                        values = my_cols(8))
-
+ggsave(filename = "saline_bydur.tiff", width = 8, height = 5, units = "in")
 
 #Urea ----
 urea_data <- read.csv("Urea-Survival.csv")
@@ -402,4 +409,4 @@ ggplot(data = urea_summary, aes(x = Duration.of.shock..m.,
                 position = position_dodge(0.5), width = 0.4) +
   labs(x = "Duration of Shock (min)", y = "Mean PFU") +
   scale_color_discrete(name = "Urea Concentration (M)")
-ggsave(filename = "urea_byconc.tiff", width = 8, height = 5, units = "in")
+ggsave(filename = "urea_byduration.tiff", width = 8, height = 5, units = "in")
