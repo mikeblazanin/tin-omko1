@@ -1,6 +1,59 @@
 library(ggplot2)
 library(dplyr)
 
+#Temperature Survival ----
+tempr <- read.csv("Temperature-Survival.csv")
+tempr <- group_by(tempr, Duration.of.shock..m., Temperature...C.)
+tempr_sum <- summarize(tempr, plate_count_mean = mean(Plate.count), 
+                       plate_count_sd = sd(Plate.count),
+                       plate_count_se = sd(Plate.count)/n())
+tempr_sum$Temperature...C. <- as.factor(tempr_sum$Temperature...C.)
+my_colr <- colorRampPalette(colors = c("#ffcc00", "Red"))
+ggplot(data = tempr_sum, aes(x = Duration.of.shock..m., y = plate_count_mean,
+                             group = Temperature...C., color = Temperature...C.)) +
+  geom_point() + geom_line() +
+  geom_errorbar(aes(ymin = plate_count_mean - 1.96*plate_count_se,
+                    ymax = plate_count_mean + 1.96*plate_count_se),
+                width = 5) + 
+  scale_color_manual(values = my_colr(6)) +
+  labs(x = "Duration of heat shock (min)") +
+  theme_bw()
+
+#Temperature Duration Survival ----
+temprdur <- read.csv("Temperature-Duration-Survival.csv")
+#Redo titer calculation for safety
+temprdur$Titer <- temprdur$Plate.count * 10**(temprdur$Dilution + 1)
+#Calculate frac survival relative to mean of 0 shock duration
+
+temprdur <- group_by(temprdur, Sample, Duration.of.shock..m.)
+temprdur_sum <- summarize(temprdur, titer_mean = mean(Titer),
+                          titer_se = sd(Titer)/n())
+temprdur$frac_surv = temprdur$Titer/temprdur_sum$titer_mean[match(temprdur$Sample,
+                                                                  temprdur_sum$Sample)]
+temprdur <- group_by(temprdur, Sample, Duration.of.shock..m.)
+temprdur_sum <- summarize(temprdur, titer_mean = mean(Titer),
+                          titer_se = sd(Titer)/n(),
+                          frac_mean = mean(frac_surv),
+                          frac_se = sd(frac_surv)/n())
+temprdur_sum$pct_mean <- temprdur_sum$frac_mean * 100
+temprdur_sum$pct_se <- temprdur_sum$frac_se * 100
+
+ggplot(data = temprdur_sum, aes(x = Duration.of.shock..m.,
+                                y = pct_mean,
+                                group = Sample,
+                                color = Sample)) +
+  geom_point(size = 2.5, alpha = 0.7) + geom_line() +
+  geom_errorbar(aes(ymin = pct_mean - 1.96*pct_se,
+                    ymax = pct_mean + 1.96*pct_se),
+                width = 5, lwd = 1, alpha = 0.7) +
+  scale_y_continuous(breaks = c(100, 10, 1, 0.1, 0.01, 0.001, 0.0001, 0.00001),
+                     labels = c("100", "10", "1", "0.1", "0.01", "0.001",
+                                "0.0001", "0.00001"),
+                     trans="log10") +
+  theme_bw() +
+  labs(x = "Duration of Heat Shock (min)", y = "Percent Survival (%)")
+
+
 #Growth curve analysis ----
 
 data1 <- read.csv("Data-Plate Reader-190817.csv", stringsAsFactors = F)
@@ -334,3 +387,4 @@ ggplot(data = urea_summary, aes(x = Urea.concentration..M.,
   labs(x = "Urea Concentration (M)", y = "Mean PFU") +
   scale_color_discrete(name = "Duration of Shock (min)")
 ggsave(filename = "urea_byconc.tiff", width = 8, height = 5, units = "in")
+
