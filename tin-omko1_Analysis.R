@@ -281,6 +281,19 @@ ggplot(data = plot1, aes(x = plot, y = max, group = phage, color = phage)) +
   theme_bw() + scale_y_continuous(limits = c(0, NA))
 
 #ggsave(filename = "gc_maxes.tiff", width = 8, height = 5, units = "in")
+plot1 <- group_by(plot1, plot, phage)
+plot1_sum <- summarize(plot1,
+                       maxpeak_mean = mean(max),
+                       maxpeak_se = sd(max)/n())
+                       
+ggplot(data = plot1_sum, aes(x = plot, y = maxpeak_mean,
+                             group = phage, color = phage)) +
+  geom_point(position = position_dodge(width = .2)) +
+  geom_errorbar(aes(ymax = maxpeak_mean + 1.96*maxpeak_se,
+                    ymin = maxpeak_mean - 1.96*maxpeak_se),
+                width = .4, position = position_dodge(width = .2)) +
+  theme_bw() +
+  labs(x = "Duration of Heat Shock (min)", y = "Peak Bacterial Density (OD600)")
 
 plot2 <- out_data2
 plot2$plot <- paste(out_data2$bacteria,
@@ -346,6 +359,7 @@ ggplot(data = saline_summary, aes(x = Saline.Concentration..M., y = mean,
 ggsave(filename = "saline_byconc.tiff", width = 8, height = 5, units = "in")
 
 #Plot summarized data, Duration on x
+my_cols <- colorRampPalette(c("gray", "Navy"))
 ggplot(data = saline_summary, aes(x = Duration.of.shock..m., y = mean,
                                   color = Saline.Concentration..M., 
                                   group = Saline.Concentration..M.)) +
@@ -354,7 +368,8 @@ ggplot(data = saline_summary, aes(x = Duration.of.shock..m., y = mean,
                                  ymin = mean-stderr, ymax = mean+stderr),
                              position = position_dodge(0.4), width = 0.4) +
   labs(x = "Duration of Shock (min)", y = "Mean PFU") +
-  scale_color_discrete(name = "Saline Concentration (M)")
+  scale_color_manual(name = "Saline Concentration (M)",
+                       values = my_cols(8))
 
 
 #Urea ----
@@ -377,14 +392,14 @@ urea_summary <- dplyr::summarize(group_by(urea_data, Urea.concentration..M.,
                                    mean = mean(Plate.count),
                                    stderr =sd(Plate.count)/sqrt(n()))
 
-ggplot(data = urea_summary, aes(x = Urea.concentration..M.,
+ggplot(data = urea_summary, aes(x = Duration.of.shock..m.,
                                 y = mean,
-                                group = Duration.of.shock..m.,
-                                color = Duration.of.shock..m.)) +
-  geom_point(position = position_dodge(0.5)) + theme_bw() + geom_errorbar(aes(x = Urea.concentration..M.,
-                                              ymin = mean-1.96*stderr, ymax = mean+1.96*stderr),
-                                          position = position_dodge(0.5), width = 0.4) +
-  labs(x = "Urea Concentration (M)", y = "Mean PFU") +
-  scale_color_discrete(name = "Duration of Shock (min)")
+                                group = Urea.concentration..M.,
+                                color = Urea.concentration..M.)) +
+  geom_point(position = position_dodge(0.5)) + theme_bw() + 
+  geom_errorbar(aes(x = Duration.of.shock..m.,
+                    ymin = mean-1.96*stderr, ymax = mean+1.96*stderr),
+                position = position_dodge(0.5), width = 0.4) +
+  labs(x = "Duration of Shock (min)", y = "Mean PFU") +
+  scale_color_discrete(name = "Urea Concentration (M)")
 ggsave(filename = "urea_byconc.tiff", width = 8, height = 5, units = "in")
-
