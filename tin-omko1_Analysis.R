@@ -3,22 +3,25 @@ library(dplyr)
 
 #Temperature Survival ----
 tempr <- read.csv("Temperature-Survival.csv")
+#The master stock was titered immediately before use and 200 pfu was the expected
+tempr$pct_surv <- 100*tempr$Plate.count/200
 tempr <- group_by(tempr, Duration.of.shock..m., Temperature...C.)
-tempr_sum <- summarize(tempr, plate_count_mean = mean(Plate.count), 
-                       plate_count_sd = sd(Plate.count),
-                       plate_count_se = sd(Plate.count)/n())
+tempr_sum <- summarize(tempr, 
+                       pct_surv_mean = mean(pct_surv), 
+                       pct_surv_se = sd(pct_surv)/n())
 tempr_sum$Temperature...C. <- as.factor(tempr_sum$Temperature...C.)
 my_colr <- colorRampPalette(colors = c("#ffcc00", "Red"))
-ggplot(data = tempr_sum, aes(x = Duration.of.shock..m., y = plate_count_mean+1,
+ggplot(data = tempr_sum, aes(x = Duration.of.shock..m., y = pct_surv_mean,
                              group = Temperature...C., color = Temperature...C.)) +
   geom_point(size = 3, alpha = 0.7) + geom_line() +
-  geom_errorbar(aes(ymin = 1+plate_count_mean - 1.96*plate_count_se,
-                    ymax = 1+plate_count_mean + 1.96*plate_count_se),
+  geom_errorbar(aes(ymin = pct_surv_mean - 1.96*pct_surv_se,
+                    ymax = pct_surv_mean + 1.96*pct_surv_se),
                 width = 5) + 
   scale_color_manual(name = "Temperature (°C)", values = my_colr(6)) +
-  labs(x = "Duration of heat shock (min)") +
+  labs(x = "Duration of heat shock (min)",
+       y = "Percent Survival (%)") +
   theme_bw() +
-  scale_y_continuous(trans="log10") +
+#  scale_y_continuous(trans="log10") +
   NULL
 ggsave(filename = "temp_surv.tiff", width = 8, height = 5, units = "in")
 
@@ -26,6 +29,9 @@ ggsave(filename = "temp_surv.tiff", width = 8, height = 5, units = "in")
 temprdur <- read.csv("Temperature-Duration-Survival.csv")
 #Redo titer calculation for safety
 temprdur$Titer <- temprdur$Plate.count * 10**(temprdur$Dilution + 1)
+#Rename Phage Stocks
+mynames <- c("A" = "R3", "B" = "S3", "C" = "S8", "D" = "S11", "E" = "S16")
+temprdur$Sample <- names(mynames)[match(temprdur$Sample, mynames)]
 #Calculate frac survival relative to mean of 0 shock duration
 temprdur <- group_by(temprdur, Sample, Duration.of.shock..m.)
 temprdur_sum <- summarize(temprdur, titer_mean = mean(Titer),
@@ -208,13 +214,12 @@ grp_data2 <- dplyr::group_by(spl_data2[!is.na(spl_data2$sm_od), ],
 grp_data3 <- dplyr::group_by(spl_data3[!is.na(spl_data3$sm_od), ],
                              bact, phage, totalpfuinoc, Rep, Contents)
                              
-
 #Get OD peak height & time for each growth curve
 out_data1 <- dplyr::summarize(grp_data1, 
-                      max = analyze_curves(sm_od, Time, 
-                                           bandwidth = 20, return = "max"),
-                      maxtime = analyze_curves(sm_od, Time, 
-                                               bandwidth = 20, return = "maxtime"))
+                              max = analyze_curves(sm_od, Time, bandwidth = 20, 
+                                                   return = "max"),
+                              maxtime = analyze_curves(sm_od, Time, bandwidth = 20, 
+                                                       return = "maxtime"))
 out_data2 <- dplyr::summarize(grp_data2, 
                               max = analyze_curves(sm_od, Time, 
                                                    bandwidth = 20, return = "max"),
@@ -253,6 +258,9 @@ view_peaks <- function(data_mlt, data_out, plt_point = TRUE,
 #view_peaks(grp_data3, out_data3, plt_point = F, numplots = 1, lwd = 2)
 
 #Plots to look at summarized data
+
+#GC Plot 1 ####
+#Create "plot" column for x axis
 plot1 <- out_data1
 plot1$plot <- NA
 for (i in 1:nrow(plot1)) {
@@ -268,23 +276,28 @@ for (i in 1:nrow(plot1)) {
   }
 }
 
+#Reformat columns
 plot1$phageshock <- factor(plot1$phageshock,
                            levels = c(NA, 0, 5, 90, 180, 270, 360))
 plot1$plot <- factor(plot1$plot,
                         levels = c("+ Ctrl", "+ Ctrl Shock",
                                    "0", "5", "90", "180", "270",
                                    "360", "- Ctrl"))
-plot1$phage <- factor(plot1$phage, levels = c("NA", "R3", "S3", "S8",
-                                              "S11", "S16"))
 plot1 <- plot1[-which(plot1$max < 0.1 & plot1$plot != "- Ctrl"), ]
+#Rename Phage Stocks
+mynames <- c("A" = "R3", "B" = "S3", "C" = "S8", "D" = "S11", "E" = "S16")
+plot1$phage <- names(mynames)[match(plot1$phage, mynames)]
 
+#Make plot
+#with all data
 ggplot(data = plot1, aes(x = plot, y = max, group = phage, color = phage)) +
   geom_point(size = 2, position = position_dodge(0.6)) +
   ylab("Max Bacterial Density (OD600)") + xlab("Duration of Heatshock (min)") +
   scale_colour_discrete(name="Phage Replicate") +
   theme_bw() + scale_y_continuous(limits = c(0, NA))
-
 #ggsave(filename = "gc_maxes.tiff", width = 8, height = 5, units = "in")
+
+#With summarized data
 plot1 <- group_by(plot1, plot, phage)
 plot1_sum <- summarize(plot1,
                        maxpeak_mean = mean(max),
@@ -292,16 +305,17 @@ plot1_sum <- summarize(plot1,
                        
 ggplot(data = plot1_sum, aes(x = plot, y = maxpeak_mean,
                              group = phage, color = phage)) +
-  geom_point(position = position_dodge(width = .2), size = 2) +
+  geom_point(position = position_dodge(width = .4), size = 2) +
   geom_errorbar(aes(ymax = maxpeak_mean + 1.96*maxpeak_se,
                     ymin = maxpeak_mean - 1.96*maxpeak_se),
-                width = .7, position = position_dodge(width = .2)) +
+                width = .7, position = position_dodge(width = .4)) +
   theme_bw() +
   labs(x = "Duration of Heat Shock (min)", y = "Peak Bacterial Density (OD600)") +
   scale_color_discrete(name = "Phage Stock")
 ggsave(filename = "gc_maxes.tiff", width = 8, height = 5, units = "in")
 
-##Plot 2
+#GC Plot 2 ####
+#Reformat & adjust column values
 plot2 <- out_data2
 plot2$plot <- paste(out_data2$bacteria,
                     out_data2$phage, out_data2$phageshock)
@@ -327,6 +341,7 @@ ggplot(data = plot2, aes(x = plot, y = max, group = pctmediashocked,
          geom_point(size = 2, position = position_dodge(0.6)) +
   xlab("")
 
+#GC Plot 3 ####
 out_data3$totalpfuinoc[out_data3$totalpfuinoc == "NA"] <- 0
 out_data3$totalpfuinoc <- as.numeric(out_data3$totalpfuinoc)
 
