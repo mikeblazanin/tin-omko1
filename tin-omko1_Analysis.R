@@ -30,29 +30,29 @@ colnames(tempr)[1:2] <- c("Temp", "Duration")
 tempr$Temp <- as.factor(tempr$Temp)
 tempr$Duration <- as.numeric(tempr$Duration)
 tempr_model <- lm(log10(pct_surv+1)~Duration:Temp, data = tempr)
-summary(tempr_model)
 anova(tempr_model)
+summary(tempr_model)
 
 #Temperature Duration Survival ----
 temprdur <- read.csv("Temperature-Duration-Survival.csv")
+#Note that all shocks were carried out at 70C, drop that column
+temprdur <- subset(temprdur, select = -c(Temperature.of.shock...70))
 #Redo titer calculation for safety
 temprdur$Titer <- temprdur$Plate.count * 10**(temprdur$Dilution + 1)
 #Rename Phage Stocks
 mynames <- c("A" = "R3", "B" = "S3", "C" = "S8", "D" = "S11", "E" = "S16")
 temprdur$Sample <- names(mynames)[match(temprdur$Sample, mynames)]
-#Calculate frac survival relative to mean of 0 shock duration
+#Calculate pct survival relative to mean of 0 shock duration
 temprdur <- group_by(temprdur, Sample, Duration.of.shock..m.)
 temprdur_sum <- summarize(temprdur, titer_mean = mean(Titer),
                           titer_se = sd(Titer)/n())
-temprdur$frac_surv = temprdur$Titer/temprdur_sum$titer_mean[match(temprdur$Sample,
+temprdur$pct_surv = 100*temprdur$Titer/temprdur_sum$titer_mean[match(temprdur$Sample,
                                                                   temprdur_sum$Sample)]
 temprdur <- group_by(temprdur, Sample, Duration.of.shock..m.)
 temprdur_sum <- summarize(temprdur, titer_mean = mean(Titer),
                           titer_se = sd(Titer)/n(),
-                          frac_mean = mean(frac_surv),
-                          frac_se = sd(frac_surv)/n())
-temprdur_sum$pct_mean <- temprdur_sum$frac_mean * 100
-temprdur_sum$pct_se <- temprdur_sum$frac_se * 100
+                          pct_mean = mean(pct_surv),
+                          pct_se = sd(pct_surv)/n())
 
 #Make plot
 ggplot(data = temprdur_sum, aes(x = Duration.of.shock..m.,
@@ -71,6 +71,13 @@ ggplot(data = temprdur_sum, aes(x = Duration.of.shock..m.,
   theme_bw() +
   labs(x = "Duration of 70°C Heat Shock (min)", y = "Percent Survival (%)")
 ggsave(filename = "temp_duration_surv.tiff", width = 8, height = 5, units = "in")
+
+#Statistics
+colnames(temprdur)[2] <- "Duration"
+temprdur_model <- lm(log10(pct_surv)~Duration*Sample, data = temprdur)
+anova(temprdur_model)
+summary(temprdur_model)
+
 
 #Growth curve analysis ----
 
@@ -239,6 +246,14 @@ out_data3 <- dplyr::summarize(grp_data3,
                               maxtime = analyze_curves(sm_od, Time, 
                                                        bandwidth = 20, return = "maxtime"))
 
+#Add information about quantity of pfu inoculated to out_data1
+out_data1$pfu_inoc <- 200
+out_data1$pfu_inoc[(out_data1$phage == "S3" | out_data1$phage == "S8") &
+                     out_data1$phageshock == 270] <- 100
+out_data1$pfu_inoc[(out_data1$phage == "S11" | out_data1$phage == "S16") &
+                     out_data1$phageshock == 270] <- 50
+out_data1$pfu_inoc[out_data1$phage == "R3" & out_data1$phageshock == 360] <- 50
+
 #Growth Curve Figures ----
 
 #Plots to visually inspect peak designation accuracy
@@ -321,6 +336,13 @@ ggplot(data = plot1_sum, aes(x = plot, y = maxpeak_mean,
   labs(x = "Duration of Heat Shock (min)", y = "Peak Bacterial Density (OD600)") +
   scale_color_discrete(name = "Phage Stock")
 ggsave(filename = "gc_maxes.tiff", width = 8, height = 5, units = "in")
+
+#Statistics
+plot1$pfu_inoc <- relevel(as.factor(plot1$pfu_inoc), ref = "200")
+curve1_model <- lm(max~plot + plot:pfu_inoc + phage:pfu_inoc:plot, 
+                   data = plot1[plot1$plot %in% c(0, 5, 90, 180, 270, 360),])
+anova(curve1_model)
+summary(curve1_model)
 
 #GC Plot 2 ####
 #Reformat & adjust column values
