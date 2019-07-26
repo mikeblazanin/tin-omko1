@@ -25,6 +25,14 @@ ggplot(data = tempr_sum, aes(x = Duration.of.shock..m., y = pct_surv_mean,
   NULL
 ggsave(filename = "temp_surv.tiff", width = 8, height = 5, units = "in")
 
+#Statistics
+colnames(tempr)[1:2] <- c("Temp", "Duration")
+tempr$Temp <- as.factor(tempr$Temp)
+tempr$Duration <- as.numeric(tempr$Duration)
+tempr_model <- lm(log10(pct_surv+1)~Duration:Temp, data = tempr)
+summary(tempr_model)
+anova(tempr_model)
+
 #Temperature Duration Survival ----
 temprdur <- read.csv("Temperature-Duration-Survival.csv")
 #Redo titer calculation for safety
