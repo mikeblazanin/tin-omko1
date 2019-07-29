@@ -253,6 +253,7 @@ out_data1$pfu_inoc[(out_data1$phage == "S3" | out_data1$phage == "S8") &
 out_data1$pfu_inoc[(out_data1$phage == "S11" | out_data1$phage == "S16") &
                      out_data1$phageshock == 270] <- 50
 out_data1$pfu_inoc[out_data1$phage == "R3" & out_data1$phageshock == 360] <- 50
+out_data1$pfu_inoc[out_data1$phage == "NA"] <- 0
 
 #Growth Curve Figures ----
 
@@ -321,28 +322,45 @@ ggplot(data = plot1, aes(x = plot, y = max, group = phage, color = phage)) +
 #ggsave(filename = "gc_maxes.tiff", width = 8, height = 5, units = "in")
 
 #With summarized data
+plot1$pfu_inoc <- as.numeric(as.character(plot1$pfu_inoc))
 plot1 <- group_by(plot1, plot, phage)
 plot1_sum <- summarize(plot1,
+                       pfu_inoc = mean(pfu_inoc),
                        maxpeak_mean = mean(max),
                        maxpeak_se = sd(max)/n())
-                       
-ggplot(data = plot1_sum, aes(x = plot, y = maxpeak_mean,
-                             group = phage, color = phage)) +
-  geom_point(position = position_dodge(width = .4), size = 2) +
-  geom_errorbar(aes(ymax = maxpeak_mean + 1.96*maxpeak_se,
+
+plot1_sum$pfu_inoc <- as.factor(plot1_sum$pfu_inoc)                       
+ggplot(data = plot1_sum[plot1_sum$plot != "- Ctrl",], 
+       aes(x = plot, y = maxpeak_mean,
+           color = phage, shape = pfu_inoc)) +
+  geom_point(position = position_dodge(width = .4), size = 3) +
+  geom_errorbar(position = position_dodge(width = .4),
+                aes(ymax = maxpeak_mean + 1.96*maxpeak_se,
                     ymin = maxpeak_mean - 1.96*maxpeak_se),
-                width = .7, position = position_dodge(width = .4)) +
+                width = .7) +
   theme_bw() +
   labs(x = "Duration of Heat Shock (min)", y = "Peak Bacterial Density (OD600)") +
-  scale_color_discrete(name = "Phage Stock")
+  scale_color_discrete(name = "Phage Stock") +
+  scale_shape_manual(name = "Phage Particles\nInoculated (pfu)",
+                     values = c(18, 15, 17, 16))
 ggsave(filename = "gc_maxes.tiff", width = 8, height = 5, units = "in")
 
 #Statistics
 plot1$pfu_inoc <- relevel(as.factor(plot1$pfu_inoc), ref = "200")
-curve1_model <- lm(max~plot + plot:pfu_inoc + phage:pfu_inoc:plot, 
-                   data = plot1[plot1$plot %in% c(0, 5, 90, 180, 270, 360),])
+plot1$plot <- relevel(as.factor(plot1$plot), ref = "0")
+plot1$phage[is.na(plot1$phage)] <- "None"
+curve1_model <- lm(max~pfu_inoc + plot + phage + phage:plot, 
+                   data = plot1[plot1$plot %in% 
+                                  c("+ Ctrl", "+ Ctrl Shock", 0, 5, 90, 180, 
+                                    270, 360),])
 anova(curve1_model)
 summary(curve1_model)
+curve1_aovmodel <- aov(max~pfu_inoc + plot + phage + phage:plot, 
+       data = plot1[plot1$plot %in% 
+                      c("+ Ctrl", "+ Ctrl Shock", 0, 5, 90, 180, 
+                        270, 360),])
+summary(curve1_aovmodel) #to check that it's the same numbers
+TukeyHSD(curve1_aovmodel, "plot")
 
 #GC Plot 2 ####
 #Reformat & adjust column values
