@@ -471,5 +471,13 @@ ggplot(data = urea_summary, aes(x = Duration.of.shock..m.,
                     ymin = mean-1.96*stderr, ymax = mean+1.96*stderr),
                 position = position_dodge(0.5), width = 0.4) +
   labs(x = "Duration of Shock (min)", y = "Mean PFU") +
-  scale_color_discrete(name = "Urea Concentration (M)")
+  scale_color_discrete(name = "Urea\nConcentration (M)")
 ggsave(filename = "urea_byduration.tiff", width = 8, height = 5, units = "in")
+
+#Statistics
+urea_data$Duration.of.shock..m. <- as.numeric(as.character(urea_data$Duration.of.shock..m.))
+urea_model <- lm(log10(Plate.count+1) ~ Urea.concentration..M. + 
+                   Urea.concentration..M.:Duration.of.shock..m.,
+                 data = urea_data)
+anova(urea_model)
+summary(urea_model)
