@@ -29,7 +29,7 @@ ggsave(filename = "temp_surv.tiff", width = 8, height = 5, units = "in")
 colnames(tempr)[1:2] <- c("Temp", "Duration")
 tempr$Temp <- as.factor(tempr$Temp)
 tempr$Duration <- as.numeric(tempr$Duration)
-tempr_model <- lm(log10(pct_surv+1)~Duration:Temp, data = tempr)
+tempr_model <- lm(log10(pct_surv+1)~Temp + Duration:Temp, data = tempr)
 anova(tempr_model)
 summary(tempr_model)
 
@@ -74,7 +74,7 @@ ggsave(filename = "temp_duration_surv.tiff", width = 8, height = 5, units = "in"
 
 #Statistics
 colnames(temprdur)[2] <- "Duration"
-temprdur_model <- lm(log10(pct_surv)~Duration*Sample, data = temprdur)
+temprdur_model <- lm(log10(pct_surv)~Sample*Duration, data = temprdur)
 anova(temprdur_model)
 summary(temprdur_model)
 
@@ -437,10 +437,21 @@ ggplot(data = saline_summary, aes(x = Duration.of.shock..m., y = mean,
   theme_bw() + geom_errorbar(aes(x = Duration.of.shock..m.,
                                  ymin = mean-stderr, ymax = mean+stderr),
                              position = position_dodge(0.4), width = 0.4) +
-  labs(x = "Duration of Shock (min)", y = "Mean PFU") +
-  scale_color_manual(name = "Saline Concentration (M)",
-                       values = my_cols(8))
+  labs(x = "Duration of Shock (min)", 
+       y = "Plaque-Forming Units (PFUs)") +
+  scale_color_manual(name = "Saline\nConcentration (M)",
+                       values = my_cols(8)) +
+  geom_hline(yintercept = 200, lty = 2, lwd = 1.15)
 ggsave(filename = "saline_bydur.tiff", width = 8, height = 5, units = "in")
+
+#Statistics
+saline_data$Duration.of.shock..m. <- as.numeric(as.character(
+  saline_data$Duration.of.shock..m.))
+saline_model <- lm(log10(Plate.Count) ~ Saline.Concentration..M. +
+                     Saline.Concentration..M.:Duration.of.shock..m.,
+                   data = saline_data)
+anova(saline_model)
+summary(saline_model)
 
 #Urea ----
 urea_data <- read.csv("Urea-Survival.csv")
@@ -471,7 +482,8 @@ ggplot(data = urea_summary, aes(x = Duration.of.shock..m.,
                     ymin = mean-1.96*stderr, ymax = mean+1.96*stderr),
                 position = position_dodge(0.5), width = 0.4) +
   labs(x = "Duration of Shock (min)", y = "Mean PFU") +
-  scale_color_discrete(name = "Urea\nConcentration (M)")
+  scale_color_discrete(name = "Urea\nConcentration (M)") +
+  geom_hline(yintercept = 200, lty = 2, lwd = 1.15)
 ggsave(filename = "urea_byduration.tiff", width = 8, height = 5, units = "in")
 
 #Statistics
