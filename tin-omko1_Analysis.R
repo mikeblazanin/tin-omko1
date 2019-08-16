@@ -3,33 +3,36 @@ library(dplyr)
 
 #Temperature Survival ----
 tempr <- read.csv("Temperature-Survival.csv")
+#Note temp in Celcius & Duration in minutes
+colnames(tempr)[1:2] <- c("Temp", "Duration")
 #The master stock was titered immediately before use and 200 pfu was the expected
-tempr$pct_surv <- 100*tempr$Plate.count/200
-tempr <- group_by(tempr, Duration.of.shock..m., Temperature...C.)
+# Plate.count
+#However, since we observe no decay at 55 & 60C, we'll use those as our
+#reference values
+tempr$pct_surv <- 100*tempr$Plate.count/mean(tempr$Plate.count[
+  tempr$Temp %in% c(55, 60)])
+tempr <- group_by(tempr, Duration, Temp)
 tempr_sum <- summarize(tempr, 
-                       pct_surv_mean = mean(pct_surv), 
-                       pct_surv_se = sd(pct_surv)/n())
-tempr_sum$Temperature...C. <- as.factor(tempr_sum$Temperature...C.)
+                       pct_surv_mean = mean(pct_surv))
+tempr_sum$Temp <- as.factor(tempr_sum$Temp)
 my_colr <- colorRampPalette(colors = c("#ffcc00", "Red"))
-ggplot(data = tempr_sum, aes(x = Duration.of.shock..m., y = pct_surv_mean,
-                             group = Temperature...C., color = Temperature...C.)) +
-  geom_point(size = 3, alpha = 0.7) + geom_line() +
-  geom_errorbar(aes(ymin = pct_surv_mean - 1.96*pct_surv_se,
-                    ymax = pct_surv_mean + 1.96*pct_surv_se),
-                width = 5) + 
+tempr_plot <- ggplot(data = tempr_sum, aes(x = Duration, y = pct_surv_mean,
+                             group = Temp, color = Temp)) +
+  geom_point(size = 3, alpha = 0.7) + geom_line() + 
   scale_color_manual(name = "Temperature (°C)", values = my_colr(6)) +
-  labs(x = "Duration of heat shock (min)",
+  labs(x = "Heat Shock Duration (min)",
        y = "Percent Survival (%)") +
   theme_bw() +
 #  scale_y_continuous(trans="log10") +
   NULL
+tempr_plot
 ggsave(filename = "temp_surv.tiff", width = 8, height = 5, units = "in")
 
 #Statistics
-colnames(tempr)[1:2] <- c("Temp", "Duration")
-tempr$Temp <- as.factor(tempr$Temp)
-tempr$Duration <- as.numeric(tempr$Duration)
-tempr_model <- lm(log10(pct_surv+1)~Temp + Duration:Temp, data = tempr)
+tempr_sum$Temp <- as.factor(tempr_sum$Temp)
+tempr_sum$Duration <- as.numeric(tempr_sum$Duration)
+tempr_model <- lm(log10(pct_surv_mean+1)~Temp + Duration:Temp, 
+                  data = tempr_sum)
 anova(tempr_model)
 summary(tempr_model)
 
@@ -50,31 +53,27 @@ temprdur$pct_surv = 100*temprdur$Titer/temprdur_sum$titer_mean[match(temprdur$Sa
                                                                   temprdur_sum$Sample)]
 temprdur <- group_by(temprdur, Sample, Duration.of.shock..m.)
 temprdur_sum <- summarize(temprdur, titer_mean = mean(Titer),
-                          titer_se = sd(Titer)/n(),
-                          pct_mean = mean(pct_surv),
-                          pct_se = sd(pct_surv)/n())
+                          pct_mean = mean(pct_surv))
 
 #Make plot
-ggplot(data = temprdur_sum, aes(x = Duration.of.shock..m.,
+temprdur_plot <- ggplot(data = temprdur_sum, aes(x = Duration.of.shock..m.,
                                 y = pct_mean,
                                 group = Sample,
                                 color = Sample)) +
   geom_point(size = 2.5, alpha = 0.7) + geom_line() +
-  geom_errorbar(aes(ymin = pct_mean - 1.96*pct_se,
-                    ymax = pct_mean + 1.96*pct_se),
-                width = 5, lwd = 1, alpha = 0.7) +
   scale_y_continuous(breaks = c(100, 10, 1, 0.1, 0.01, 0.001, 0.0001, 0.00001),
                      labels = c("100", "10", "1", "0.1", "0.01", "0.001",
                                 "0.0001", "0.00001"),
                      trans="log10") +
   scale_color_discrete(name = "Phage Stock") +
   theme_bw() +
-  labs(x = "Duration of 70°C Heat Shock (min)", y = "Percent Survival (%)")
+  labs(x = "70°C Heat Shock Duration (min)", y = "Percent Survival (%)")
+temprdur_plot
 ggsave(filename = "temp_duration_surv.tiff", width = 8, height = 5, units = "in")
 
 #Statistics
-colnames(temprdur)[2] <- "Duration"
-temprdur_model <- lm(log10(pct_surv)~Sample*Duration, data = temprdur)
+colnames(temprdur_sum)[2] <- "Duration"
+temprdur_model <- lm(log10(pct_mean)~Sample*Duration, data = temprdur_sum)
 anova(temprdur_model)
 summary(temprdur_model)
 
@@ -313,13 +312,13 @@ mynames <- c("A" = "R3", "B" = "S3", "C" = "S8", "D" = "S11", "E" = "S16")
 plot1$phage <- names(mynames)[match(plot1$phage, mynames)]
 
 #Make plot
-#with all data
-ggplot(data = plot1, aes(x = plot, y = max, group = phage, color = phage)) +
-  geom_point(size = 2, position = position_dodge(0.6)) +
-  ylab("Max Bacterial Density (OD600)") + xlab("Duration of Heatshock (min)") +
-  scale_colour_discrete(name="Phage Replicate") +
-  theme_bw() + scale_y_continuous(limits = c(0, NA))
-#ggsave(filename = "gc_maxes.tiff", width = 8, height = 5, units = "in")
+# #with all data
+# ggplot(data = plot1, aes(x = plot, y = max, group = phage, color = phage)) +
+#   geom_point(size = 2, position = position_dodge(0.6)) +
+#   ylab("Max Bacterial Density (OD600)") + xlab("Duration of Heatshock (min)") +
+#   scale_colour_discrete(name="Phage Replicate") +
+#   theme_bw() + scale_y_continuous(limits = c(0, NA))
+# #ggsave(filename = "gc_maxes.tiff", width = 8, height = 5, units = "in")
 
 #With summarized data
 plot1$pfu_inoc <- as.numeric(as.character(plot1$pfu_inoc))
@@ -330,20 +329,44 @@ plot1_sum <- summarize(plot1,
                        maxpeak_se = sd(max)/n())
 
 plot1_sum$pfu_inoc <- as.factor(plot1_sum$pfu_inoc)                       
-ggplot(data = plot1_sum[plot1_sum$plot != "- Ctrl",], 
-       aes(x = plot, y = maxpeak_mean,
-           color = phage, shape = pfu_inoc)) +
+gc_plot1 <- ggplot(data = plot1_sum[plot1_sum$plot != "- Ctrl" &
+                                      plot1_sum$pfu_inoc %in% c(0, 200),], 
+                   aes(x = plot, y = maxpeak_mean, color = phage)) +
   geom_point(position = position_dodge(width = .4), size = 3) +
   geom_errorbar(position = position_dodge(width = .4),
                 aes(ymax = maxpeak_mean + 1.96*maxpeak_se,
                     ymin = maxpeak_mean - 1.96*maxpeak_se),
                 width = .7) +
-  theme_bw() +
-  labs(x = "Duration of Heat Shock (min)", y = "Peak Bacterial Density (OD600)") +
+  theme_bw()  +
+  labs(x = "Heat Shock Duration (min)", y = "Peak Bacterial Density (OD600)") +
+  scale_color_discrete(name = "Phage Stock") +
+  geom_hline(yintercept = plot1_sum$maxpeak_mean[plot1_sum$plot == "- Ctrl"],
+             lty = 2, lwd = 1.15) +
+  scale_x_discrete(labels = c("+ Ctrl", "+ Ctrl\nShock", "0", "5", 
+                              "90", "180", "270"))
+  #  theme(axis.text.x = element_text(angle = 30, size = 12, hjust = 1))
+gc_plot1
+ggsave(filename = "gc_maxes.tiff", width = 8, height = 5, units = "in")
+
+#Plot all the data
+gc_plot1_alldata <- ggplot(data = plot1_sum, 
+                   aes(x = plot, y = maxpeak_mean, color = phage,
+                       shape = pfu_inoc)) +
+  geom_point(position = position_dodge(width = .4), size = 3) +
+  geom_errorbar(position = position_dodge(width = .4),
+                aes(ymax = maxpeak_mean + 1.96*maxpeak_se,
+                    ymin = maxpeak_mean - 1.96*maxpeak_se),
+                width = .7) +
+  theme_bw()  +
+  labs(x = "Heat Shock Duration (min)", y = "Peak Bacterial Density (OD600)") +
   scale_color_discrete(name = "Phage Stock") +
   scale_shape_manual(name = "Phage Particles\nInoculated (pfu)",
-                     values = c(18, 15, 17, 16))
-ggsave(filename = "gc_maxes.tiff", width = 8, height = 5, units = "in")
+                     values = c(18, 15, 17, 16)) +
+  scale_x_discrete(labels = c("+ Ctrl", "+ Ctrl\nShock", "0", "5", 
+                              "90", "180", "270", "360", "- Ctrl"))
+gc_plot1_alldata
+ggsave(filename = "gc_maxes_alldata.tiff", width = 8, height = 5, units = "in")
+
 
 #Statistics
 plot1$pfu_inoc <- relevel(as.factor(plot1$pfu_inoc), ref = "200")
@@ -361,6 +384,20 @@ curve1_aovmodel <- aov(max~pfu_inoc + plot + phage + phage:plot,
                         270, 360),])
 summary(curve1_aovmodel) #to check that it's the same numbers
 TukeyHSD(curve1_aovmodel, "plot")
+
+#Combined Temperature Figure ####
+
+#Add space above & below temprdur plot
+tempr_plot <- tempr_plot + theme(plot.margin = unit(c(0.1, 0.05, 0.15, 0.05), "in"))
+temprdur_plot <- temprdur_plot + theme(plot.margin = unit(c(0.15, 0.05, 0.2, 0.05), "in"))
+gc_plot1 <- gc_plot1 + theme(plot.margin = unit(c(0.2, 0.05, 0.2, 0.05), "in"))
+
+comb_temp_plot <- cowplot::plot_grid(tempr_plot, temprdur_plot, gc_plot1,
+                   ncol = 1, labels = c("A", "B", "C"),
+                   align = "v", label_y = c(1, 1, 1.1))
+
+cowplot::save_plot("combined_temp.tiff", comb_temp_plot,
+                   base_height = 8, base_width = 5)
 
 #GC Plot 2 ####
 #Reformat & adjust column values
