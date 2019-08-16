@@ -407,49 +407,52 @@ saline_data <- read.csv("Saline-Survival.csv", stringsAsFactors = F)
 saline_data$Saline.Concentration..M.[saline_data$Saline.Concentration..M. == "0.17 (LB)"] <- "0.17"
 saline_data$Duration.of.shock..m. <- factor(saline_data$Duration.of.shock..m.)
 saline_data$Saline.Concentration..M. <- factor(saline_data$Saline.Concentration..M.)
+saline_data$pct_surv <- 100*saline_data$Plate.Count/
+  mean(saline_data$Plate.Count[saline_data$Saline.Concentration..M. == 0.17])
 saline_summary <- dplyr::summarize(group_by(saline_data, Saline.Concentration..M., 
                                      Duration.of.shock..m.),
-                                   mean = mean(Plate.Count),
-                                   stderr =sd(Plate.Count)/sqrt(n()))
-#Plot all data
-ggplot(data = saline_data, aes(x = Saline.Concentration..M., y = Plate.Count,
-                               color = Duration.of.shock..m., 
-                               group = Duration.of.shock..m.)) +
-  geom_point(position = position_dodge(0.4))
-#Plot summarized data, Saline Conc on x
-ggplot(data = saline_summary, aes(x = Saline.Concentration..M., y = mean,
-                                  color = Duration.of.shock..m., 
-                                  group = Duration.of.shock..m.)) +
-  geom_point(position = position_dodge(0.4)) +
-  theme_bw() + geom_errorbar(aes(x = Saline.Concentration..M.,
-                             ymin = mean-1.96*stderr, ymax = mean+1.96*stderr),
-                             position = position_dodge(0.4), width = 0.4) +
-  labs(x = "Saline Concentration (M)", y = "Mean PFU") +
-  scale_color_discrete(name = "Duration of Shock (min)")
-ggsave(filename = "saline_byconc.tiff", width = 8, height = 5, units = "in")
+                                   mean_pct_surv = mean(pct_surv))
+
+# #Plot all data
+# ggplot(data = saline_data, aes(x = Saline.Concentration..M., y = Plate.Count,
+#                                color = Duration.of.shock..m., 
+#                                group = Duration.of.shock..m.)) +
+#   geom_point(position = position_dodge(0.4))
+
+# #Plot summarized data, Saline Conc on x
+# ggplot(data = saline_summary, aes(x = Saline.Concentration..M., 
+#                                   y = mean_pct_surv,
+#                                   color = Duration.of.shock..m., 
+#                                   group = Duration.of.shock..m.)) +
+#   geom_point() + geom_line() +
+#   theme_bw() +
+#   labs(x = "Saline Concentration (M)", y = "Percent Survival (%)") +
+#   scale_color_discrete(name = "Duration of Shock (min)")
+# ggsave(filename = "saline_byconc.tiff", width = 8, height = 5, units = "in")
 
 #Plot summarized data, Duration on x
 my_cols <- colorRampPalette(c("gray", "Navy"))
-ggplot(data = saline_summary, aes(x = Duration.of.shock..m., y = mean,
+ggplot(data = saline_summary, aes(x = Duration.of.shock..m., 
+                                  y = mean_pct_surv,
                                   color = Saline.Concentration..M., 
                                   group = Saline.Concentration..M.)) +
-  geom_point(position = position_dodge(0.4)) +
-  theme_bw() + geom_errorbar(aes(x = Duration.of.shock..m.,
-                                 ymin = mean-stderr, ymax = mean+stderr),
-                             position = position_dodge(0.4), width = 0.4) +
+  geom_point(size = 3) + geom_line(lwd = 1.5) +
+  theme_bw() +
   labs(x = "Duration of Shock (min)", 
-       y = "Plaque-Forming Units (PFUs)") +
+       y = "Percent Survival (%)") +
   scale_color_manual(name = "Saline\nConcentration (M)",
                        values = my_cols(8)) +
-  geom_hline(yintercept = 200, lty = 2, lwd = 1.15)
+  geom_hline(yintercept = 100, lty = 2, lwd = 1.15)
 ggsave(filename = "saline_bydur.tiff", width = 8, height = 5, units = "in")
 
 #Statistics
-saline_data$Duration.of.shock..m. <- as.numeric(as.character(
-  saline_data$Duration.of.shock..m.))
-saline_model <- lm(log10(Plate.Count) ~ Saline.Concentration..M. +
+saline_summary$Duration.of.shock..m. <- as.numeric(as.character(
+  saline_summary$Duration.of.shock..m.))
+saline_summary$Saline.Concentration..M. <- relevel(
+  saline_summary$Saline.Concentration..M., ref = "0.17")
+saline_model <- lm(log10(mean_pct_surv) ~ Saline.Concentration..M. +
                      Saline.Concentration..M.:Duration.of.shock..m.,
-                   data = saline_data)
+                   data = saline_summary)
 anova(saline_model)
 summary(saline_model)
 
@@ -457,39 +460,44 @@ summary(saline_model)
 urea_data <- read.csv("Urea-Survival.csv")
 urea_data$Urea.concentration..M. <- factor(urea_data$Urea.concentration..M.)
 urea_data$Duration.of.shock..m. <- factor(urea_data$Duration.of.shock..m.)
+urea_data$pct_surv <- 100*urea_data$Plate.count/mean(urea_data$Plate.count[
+  urea_data$Urea.concentration..M. == 0])
+urea_summary <- dplyr::summarize(group_by(urea_data, Urea.concentration..M.,
+                                          Duration.of.shock..m.),
+                                 mean_pct_surv = mean(pct_surv))
+
+##Plot all data, duration on X
 # ggplot(data = urea_data, aes(x = Duration.of.shock..m., y = Plate.count,
 #                              group = Urea.concentration..M.,
 #                              color = Urea.concentration..M.)) +
 #   geom_point(position = position_dodge(0.6))
-ggplot(data = urea_data, aes(x = Urea.concentration..M.,
-                             y = Plate.count,
-                             group = Duration.of.shock..m.,
-                             color = Duration.of.shock..m.)) +
-  geom_point(position = position_dodge(0.4)) +
-  theme_bw()
 
-urea_summary <- dplyr::summarize(group_by(urea_data, Urea.concentration..M.,
-                                            Duration.of.shock..m.),
-                                   mean = mean(Plate.count),
-                                   stderr =sd(Plate.count)/sqrt(n()))
+##Plot all data, conc on X
+# ggplot(data = urea_data, aes(x = Urea.concentration..M.,
+#                              y = Plate.count,
+#                              group = Duration.of.shock..m.,
+#                              color = Duration.of.shock..m.)) +
+#   geom_point(position = position_dodge(0.4)) +
+#   theme_bw()
 
+#Plot summarized data, duration on X
 ggplot(data = urea_summary, aes(x = Duration.of.shock..m.,
-                                y = mean,
+                                y = mean_pct_surv,
                                 group = Urea.concentration..M.,
                                 color = Urea.concentration..M.)) +
-  geom_point(position = position_dodge(0.5)) + theme_bw() + 
-  geom_errorbar(aes(x = Duration.of.shock..m.,
-                    ymin = mean-1.96*stderr, ymax = mean+1.96*stderr),
-                position = position_dodge(0.5), width = 0.4) +
-  labs(x = "Duration of Shock (min)", y = "Mean PFU") +
-  scale_color_discrete(name = "Urea\nConcentration (M)") +
-  geom_hline(yintercept = 200, lty = 2, lwd = 1.15)
+  geom_point(size = 3) + geom_line(lwd = 1.5) +
+  theme_bw() + 
+  labs(x = "Duration of Shock (min)", y = "Percent Survival (%)") +
+  geom_hline(yintercept = 100, lty = 2, lwd = 1.15) + 
+  scale_color_manual(name = "Urea\nConcentration (M)",
+                     values = my_cols(11))
 ggsave(filename = "urea_byduration.tiff", width = 8, height = 5, units = "in")
 
 #Statistics
-urea_data$Duration.of.shock..m. <- as.numeric(as.character(urea_data$Duration.of.shock..m.))
-urea_model <- lm(log10(Plate.count+1) ~ Urea.concentration..M. + 
+urea_summary$Duration.of.shock..m. <- as.numeric(as.character(
+  urea_summary$Duration.of.shock..m.))
+urea_model <- lm(log10(mean_pct_surv+1) ~ Urea.concentration..M. + 
                    Urea.concentration..M.:Duration.of.shock..m.,
-                 data = urea_data)
+                 data = urea_summary)
 anova(urea_model)
 summary(urea_model)
