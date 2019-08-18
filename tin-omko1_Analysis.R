@@ -20,6 +20,9 @@ tempr_plot <- ggplot(data = tempr_sum, aes(x = Duration, y = pct_surv_mean,
                              group = Temp, color = Temp)) +
   geom_point(size = 3, alpha = 0.7) + geom_line() + 
   scale_color_manual(name = "Temperature (°C)", values = my_colr(6)) +
+  scale_x_continuous(breaks = seq(from = 0, to = 90, by = 30),
+                     limits = c(0, 90)) +
+  scale_y_continuous(breaks = seq(from = 0, to = 125, by = 25)) +
   labs(x = "Heat Shock Duration (min)",
        y = "Percent Survival (%)") +
   theme_bw() +
@@ -372,16 +375,18 @@ ggsave(filename = "gc_maxes_alldata.tiff", width = 8, height = 5, units = "in")
 plot1$pfu_inoc <- relevel(as.factor(plot1$pfu_inoc), ref = "200")
 plot1$plot <- relevel(as.factor(plot1$plot), ref = "0")
 plot1$phage[is.na(plot1$phage)] <- "None"
-curve1_model <- lm(max~pfu_inoc + plot + phage + phage:plot, 
+curve1_model <- lm(max~plot + phage + phage:plot, 
                    data = plot1[plot1$plot %in% 
                                   c("+ Ctrl", "+ Ctrl Shock", 0, 5, 90, 180, 
-                                    270, 360),])
+                                    270, 360) &
+                                  plot1$pfu_inoc %in% c(0, 200),])
 anova(curve1_model)
 summary(curve1_model)
-curve1_aovmodel <- aov(max~pfu_inoc + plot + phage + phage:plot, 
-       data = plot1[plot1$plot %in% 
-                      c("+ Ctrl", "+ Ctrl Shock", 0, 5, 90, 180, 
-                        270, 360),])
+curve1_aovmodel <- aov(max~plot + phage + phage:plot, 
+                       data = plot1[plot1$plot %in% 
+                                      c("+ Ctrl", "+ Ctrl Shock", 0, 5, 90, 180, 
+                                        270, 360) &
+                                      plot1$pfu_inoc %in% c(0, 200),])
 summary(curve1_aovmodel) #to check that it's the same numbers
 TukeyHSD(curve1_aovmodel, "plot")
 
