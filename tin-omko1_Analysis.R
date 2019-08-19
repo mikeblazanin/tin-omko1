@@ -352,7 +352,11 @@ gc_plot1
 ggsave(filename = "gc_maxes.tiff", width = 8, height = 5, units = "in")
 
 #Plot all the data
-gc_plot1_alldata <- ggplot(data = plot1_sum, 
+plot1_sum_temp <- plot1_sum
+plot1_sum_temp$pfu_inoc <- factor(plot1_sum_temp$pfu_inoc,
+                                  levels = c("0, 0", levels(plot1_sum_temp$pfu_inoc)))
+plot1_sum_temp$pfu_inoc[plot1_sum_temp$plot == "- Ctrl"] <- "0, 0"
+gc_plot1_alldata <- ggplot(data = plot1_sum_temp, 
                    aes(x = plot, y = maxpeak_mean, color = phage,
                        shape = pfu_inoc)) +
   geom_point(position = position_dodge(width = .4), size = 3) +
@@ -363,10 +367,17 @@ gc_plot1_alldata <- ggplot(data = plot1_sum,
   theme_bw()  +
   labs(x = "Heat Shock Duration (min)", y = "Peak Bacterial Density (OD600)") +
   scale_color_discrete(name = "Phage Stock") +
-  scale_shape_manual(name = "Phage Particles\nInoculated (pfu)",
-                     values = c(18, 15, 17, 16)) +
+  scale_shape_manual(name = "Phage; Bacteria\nInoculated (pfu; cfu)",
+                     values = c(8, 18, 15, 17, 16),
+                     labels = expression("0;           0",
+                                         paste("0; ", 20%.%10^6),
+                                         paste("50;   ", 5%.%10^6),
+                                         paste("100; ", 10%.%10^6),
+                                         paste("200; ", 20%.%10^6))) +
   scale_x_discrete(labels = c("+ Ctrl", "+ Ctrl\nShock", "0", "5", 
-                              "90", "180", "270", "360", "- Ctrl"))
+                              "90", "180", "270", "360", "- Ctrl")) +
+  guides(color = guide_legend(order = 1),
+         shape = guide_legend(order = 2))
 gc_plot1_alldata
 ggsave(filename = "gc_maxes_alldata.tiff", width = 8, height = 5, units = "in")
 
