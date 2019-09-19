@@ -2,31 +2,72 @@ library(ggplot2)
 library(dplyr)
 
 #Temperature Survival ----
+
+#Read in & format data
 tempr <- read.csv("Temperature-Survival.csv")
 #Note temp in Celcius & Duration in minutes
 colnames(tempr)[1:2] <- c("Temp", "Duration")
-#The master stock was titered immediately before use and 200 pfu was the expected
-# Plate.count
-#However, since we observe no decay at 55 & 60C, we'll use those as our
-#reference values
+
+#Calculate percent survival
+#(Note) The master stock was titered immediately before use and 200 pfu was 
+# the expected Plate.count
 tempr$pct_surv <- 100*tempr$Plate.count/mean(tempr$Plate.count[
-  tempr$Temp %in% c(55, 60)])
-tempr <- group_by(tempr, Duration, Temp)
+  tempr$Temp == 55 & tempr$Duration == 5])
+
+#Calculate limit of detection
+tempr_limit_detec <- 100*1/mean(tempr$Plate.count[
+  tempr$Temp == 55 & tempr$Duration == 5])
+
+#Summarize
+tempr <- group_by(tempr, Temp, Duration)
 tempr_sum <- summarize(tempr, 
-                       pct_surv_mean = mean(pct_surv))
+                       mean_pct_surv = mean(pct_surv))
+
+#Flag & adjust values below detection
+tempr_sum$bd <- tempr_sum$mean_pct_surv < tempr_limit_detec
+tempr_sum$mean_pct_surv[tempr_sum$bd] <- tempr_limit_detec
+
+#Make variables for plotting
+tempr_sum$mean_pct_surv_lines <- tempr_sum$mean_pct_surv #this is to plot the lines
+tempr_sum$ptshape <- 16
+
+#Make pch 8 for first 0 and NA for subsequent 0's
+#Stop plotting lines after the first bd point
+for (temp in tempr_sum$Temp) {
+  myrows <- tempr_sum$Temp == temp
+  bd_rows <- (myrows & tempr_sum$bd)
+  tempr_sum$ptshape[bd_rows] <- 8
+  if (sum(bd_rows) > 1) {
+    #identify bd rows where the previous point was also bd
+    for (i in 2:sum(bd_rows)) {
+      this_row <- which(bd_rows)[i]
+      if (tempr_sum$bd[this_row - 1]) {
+        tempr_sum$ptshape[this_row] <- NA
+        tempr_sum$mean_pct_surv_lines[this_row] <- NA
+      }
+    }
+  }
+}
+tempr_sum$ptshape <- as.factor(tempr_sum$ptshape)
 tempr_sum$Temp <- as.factor(tempr_sum$Temp)
-my_colr <- colorRampPalette(colors = c("#ffcc00", "Red"))
-tempr_plot <- ggplot(data = tempr_sum, aes(x = Duration, y = pct_surv_mean,
-                             group = Temp, color = Temp)) +
-  geom_point(size = 3, alpha = 0.7) + geom_line() + 
+
+my_colr <- colorRampPalette(colors = c("#ffcc00", "red"))
+tempr_plot <- ggplot(data = tempr_sum, aes(x = Duration, y = mean_pct_surv,
+                             group = Temp, color = Temp, shape = ptshape)) +
+  geom_point(size = 3, alpha = 0.7) + 
+  geom_line(aes(x = Duration, y = mean_pct_surv_lines)) + 
   scale_color_manual(name = "Temperature (°C)", values = my_colr(6)) +
+  scale_shape_manual(values = list("8" = 8, "16" = 16)) +
   scale_x_continuous(breaks = seq(from = 0, to = 90, by = 30),
                      limits = c(0, 90)) +
-  scale_y_continuous(breaks = seq(from = 0, to = 125, by = 25)) +
+  scale_y_continuous(breaks = c(100, 10, 1),
+                     labels = c("100", "10", "1"),
+                     trans="log10") +
   labs(x = "Heat Shock Duration (min)",
        y = "Percent Survival (%)") +
   theme_bw() +
-#  scale_y_continuous(trans="log10") +
+  geom_hline(yintercept = tempr_limit_detec, lty = 3, lwd = 1.15) +
+  guides(shape = FALSE) +
   NULL
 tempr_plot
 ggsave(filename = "temp_surv.tiff", width = 8, height = 5, units = "in")
@@ -460,8 +501,13 @@ saline_data <- read.csv("Saline-Survival.csv", stringsAsFactors = F)
 saline_data$Saline.Concentration..M.[saline_data$Saline.Concentration..M. == "0.17 (LB)"] <- "0.17"
 saline_data$Duration.of.shock..m. <- factor(saline_data$Duration.of.shock..m.)
 saline_data$Saline.Concentration..M. <- factor(saline_data$Saline.Concentration..M.)
-saline_data$pct_surv <- 100*saline_data$Plate.Count/
-  mean(saline_data$Plate.Count[saline_data$Saline.Concentration..M. == 0.17])
+saline_data$pct_surv <- 100*saline_data$Plate.Count/mean(
+  saline_data$Plate.Count[saline_data$Saline.Concentration..M. == 0.17 &
+                            saline_data$Duration.of.shock..m. == 5])
+saline_limit_detection <- 100*1/mean(
+  saline_data$Plate.Count[saline_data$Saline.Concentration..M. == 0.17 &
+                            saline_data$Duration.of.shock..m. == 5])
+
 saline_summary <- dplyr::summarize(group_by(saline_data, Saline.Concentration..M., 
                                      Duration.of.shock..m.),
                                    mean_pct_surv = mean(pct_surv))
@@ -495,7 +541,11 @@ ggplot(data = saline_summary, aes(x = Duration.of.shock..m.,
        y = "Percent Survival (%)") +
   scale_color_manual(name = "Saline\nConcentration (M)",
                        values = my_cols(8)) +
-  geom_hline(yintercept = 100, lty = 2, lwd = 1.15)
+  scale_y_continuous(breaks = c(100, 10, 1),
+                     labels = c("100", "10", "1"),
+                     trans="log10") +
+  geom_hline(yintercept = 100, lty = 2, lwd = 1.15) +
+  geom_hline(yintercept = saline_limit_detection, lty = 3, lwd = 1.15)
 ggsave(filename = "saline_bydur.tiff", width = 8, height = 5, units = "in")
 
 #Statistics
@@ -510,40 +560,71 @@ anova(saline_model)
 summary(saline_model)
 
 #Urea ----
+
+#Read & factorize data
 urea_data <- read.csv("Urea-Survival.csv")
 urea_data$Urea.concentration..M. <- factor(urea_data$Urea.concentration..M.)
 urea_data$Duration.of.shock..m. <- factor(urea_data$Duration.of.shock..m.)
-urea_data$pct_surv <- 100*urea_data$Plate.count/mean(urea_data$Plate.count[
-  urea_data$Urea.concentration..M. == 0])
+#Calculate percent survival
+urea_data$pct_surv <- 100*urea_data$Plate.count/mean(
+  urea_data$Plate.count[urea_data$Urea.concentration..M. == 0 &
+    urea_data$Duration.of.shock..m. == 0])
+#Calculate limit of detection in percent
+urea_limit_detection <- 100*1/mean(urea_data$Plate.count[
+  urea_data$Urea.concentration..M. == 0 &
+    urea_data$Duration.of.shock..m. == 0])
+#Summarize
 urea_summary <- dplyr::summarize(group_by(urea_data, Urea.concentration..M.,
                                           Duration.of.shock..m.),
                                  mean_pct_surv = mean(pct_surv))
 
-##Plot all data, duration on X
-# ggplot(data = urea_data, aes(x = Duration.of.shock..m., y = Plate.count,
-#                              group = Urea.concentration..M.,
-#                              color = Urea.concentration..M.)) +
-#   geom_point(position = position_dodge(0.6))
+#Flag & adjust values below limit of detection
+urea_summary$bd <- urea_summary$mean_pct_surv < urea_limit_detection
+urea_summary$mean_pct_surv[urea_summary$mean_pct_surv < urea_limit_detection] <- 
+  urea_limit_detection
 
-##Plot all data, conc on X
-# ggplot(data = urea_data, aes(x = Urea.concentration..M.,
-#                              y = Plate.count,
-#                              group = Duration.of.shock..m.,
-#                              color = Duration.of.shock..m.)) +
-#   geom_point(position = position_dodge(0.4)) +
-#   theme_bw()
+#Make variables for plotting
+urea_summary$mean_pct_surv_lines <- urea_summary$mean_pct_surv #this is to plot the lines
+urea_summary$ptshape <- 16
+
+#Make pch 8 for first 0 and NA for subsequent 0's
+#Stop plotting lines after the first bd point
+for (conc in urea_summary$Urea.concentration..M.) {
+  myrows <- urea_summary$Urea.concentration..M. == conc
+  bd_rows <- (myrows & urea_summary$bd)
+  urea_summary$ptshape[bd_rows] <- 8
+  if (sum(bd_rows) > 1) {
+    #identify bd rows where the previous point was also bd
+    for (i in 2:sum(bd_rows)) {
+      this_row <- which(bd_rows)[i]
+      if (urea_summary$bd[this_row - 1]) {
+        urea_summary$ptshape[this_row] <- NA
+        urea_summary$mean_pct_surv_lines[this_row] <- NA
+      }
+    }
+  }
+}
+urea_summary$ptshape <- as.factor(urea_summary$ptshape)
 
 #Plot summarized data, duration on X
 ggplot(data = urea_summary, aes(x = Duration.of.shock..m.,
                                 y = mean_pct_surv,
                                 group = Urea.concentration..M.,
-                                color = Urea.concentration..M.)) +
-  geom_point(size = 3) + geom_line(lwd = 1.5) +
+                                color = Urea.concentration..M.,
+                                shape = ptshape)) +
+  geom_point(size = 3) + 
+  geom_line(lwd = 1.5, aes(x = Duration.of.shock..m., y = mean_pct_surv_lines)) +
   theme_bw() + 
   labs(x = "Duration of Shock (min)", y = "Percent Survival (%)") +
   geom_hline(yintercept = 100, lty = 2, lwd = 1.15) + 
+  geom_hline(yintercept = urea_limit_detection, lty = 3, lwd = 1.15) +
   scale_color_manual(name = "Urea\nConcentration (M)",
-                     values = my_cols(11))
+                     values = my_cols(11)) +
+  scale_shape_manual(values = list("8" = 8, "16" = 16)) +
+  scale_y_continuous(breaks = c(100, 10, 1),
+                     labels = c("100", "10", "1"),
+                     trans="log10") +
+  guides(shape = FALSE) #don't show shape legend
 ggsave(filename = "urea_byduration.tiff", width = 8, height = 5, units = "in")
 
 #Statistics
