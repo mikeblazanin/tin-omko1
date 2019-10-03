@@ -66,19 +66,21 @@ tempr_plot <- ggplot(data = tempr_sum, aes(x = Duration, y = mean_pct_surv,
   labs(x = "Heat Shock Duration (min)",
        y = "Percent Survival (%)") +
   theme_bw() +
+  theme(panel.grid = element_blank()) +
   geom_hline(yintercept = tempr_limit_detec, lty = 3, lwd = 1.15) +
+  geom_hline(yintercept = 100, lty = 2, lwd = 1.15) + 
   guides(shape = FALSE) +
   NULL
 tempr_plot
 ggsave(filename = "temp_surv.tiff", width = 8, height = 5, units = "in")
 
 #Statistics
-tempr_sum$Temp <- as.factor(tempr_sum$Temp)
-tempr_sum$Duration <- as.numeric(tempr_sum$Duration)
-tempr_model <- lm(log10(pct_surv_mean+1)~Temp + Duration:Temp, 
-                  data = tempr_sum)
-anova(tempr_model)
-summary(tempr_model)
+# tempr_sum$Temp <- as.factor(tempr_sum$Temp)
+# tempr_sum$Duration <- as.numeric(tempr_sum$Duration)
+# tempr_model <- lm(log10(pct_surv_mean+1)~Temp + Duration:Temp, 
+#                   data = tempr_sum)
+# anova(tempr_model)
+# summary(tempr_model)
 
 #Temperature Duration Survival ----
 temprdur <- read.csv("Temperature-Duration-Survival.csv")
@@ -93,8 +95,13 @@ temprdur$Sample <- names(mynames)[match(temprdur$Sample, mynames)]
 temprdur <- group_by(temprdur, Sample, Duration.of.shock..m.)
 temprdur_sum <- summarize(temprdur, titer_mean = mean(Titer),
                           titer_se = sd(Titer)/n())
-temprdur$pct_surv = 100*temprdur$Titer/temprdur_sum$titer_mean[match(temprdur$Sample,
+temprdur$pct_surv <- 100*temprdur$Titer/temprdur_sum$titer_mean[match(temprdur$Sample,
                                                                   temprdur_sum$Sample)]
+#Calculate limits of detection by assuming 1 pfu on -1 plate (so titer = 100)
+#(only plot the highest limit of detection)
+temprdur_limit_detec <- 100*100/temprdur_sum$titer_mean[
+  temprdur_sum$Duration.of.shock..m. == 0]
+
 temprdur <- group_by(temprdur, Sample, Duration.of.shock..m.)
 temprdur_sum <- summarize(temprdur, titer_mean = mean(Titer),
                           pct_mean = mean(pct_surv))
@@ -111,15 +118,18 @@ temprdur_plot <- ggplot(data = temprdur_sum, aes(x = Duration.of.shock..m.,
                      trans="log10") +
   scale_color_discrete(name = "Phage Stock") +
   theme_bw() +
-  labs(x = "70°C Heat Shock Duration (min)", y = "Percent Survival (%)")
+  theme(panel.grid = element_blank()) +
+  labs(x = "70°C Heat Shock Duration (min)", y = "Percent Survival (%)") +
+  geom_hline(yintercept = 100, lty = 2, lwd = 1.15) +
+  geom_hline(yintercept = max(temprdur_limit_detec), lty = 3, lwd = 1.15)
 temprdur_plot
 ggsave(filename = "temp_duration_surv.tiff", width = 8, height = 5, units = "in")
 
 #Statistics
-colnames(temprdur_sum)[2] <- "Duration"
-temprdur_model <- lm(log10(pct_mean)~Sample*Duration, data = temprdur_sum)
-anova(temprdur_model)
-summary(temprdur_model)
+# colnames(temprdur_sum)[2] <- "Duration"
+# temprdur_model <- lm(log10(pct_mean)~Sample*Duration, data = temprdur_sum)
+# anova(temprdur_model)
+# summary(temprdur_model)
 
 
 #Growth curve analysis ----
@@ -382,12 +392,13 @@ gc_plot1 <- ggplot(data = plot1_sum[plot1_sum$plot != "- Ctrl" &
                     ymin = maxpeak_mean - 1.96*maxpeak_se),
                 width = .7) +
   theme_bw()  +
-  labs(x = "Heat Shock Duration (min)", y = "Peak Bacterial Density (OD600)") +
+  labs(x = "70°C Heat Shock Duration (min)", y = "Peak Bacterial Density (OD600)") +
   scale_color_discrete(name = "Phage Stock") +
   geom_hline(yintercept = plot1_sum$maxpeak_mean[plot1_sum$plot == "- Ctrl"],
-             lty = 2, lwd = 1.15) +
+             lty = 3, lwd = 1.15) +
   scale_x_discrete(labels = c("+ Ctrl", "+ Ctrl\nShock", "0", "5", 
-                              "90", "180", "270"))
+                              "90", "180", "270")) +
+  theme(panel.grid = element_blank())
   #  theme(axis.text.x = element_text(angle = 30, size = 12, hjust = 1))
 gc_plot1
 ggsave(filename = "gc_maxes.tiff", width = 8, height = 5, units = "in")
@@ -406,6 +417,7 @@ gc_plot1_alldata <- ggplot(data = plot1_sum_temp,
                     ymin = maxpeak_mean - 1.96*maxpeak_se),
                 width = .7) +
   theme_bw()  +
+  theme(panel.grid = element_blank()) +
   labs(x = "Heat Shock Duration (min)", y = "Peak Bacterial Density (OD600)") +
   scale_color_discrete(name = "Phage Stock") +
   scale_shape_manual(name = "Phage; Bacteria\nInoculated (pfu; cfu)",
@@ -424,23 +436,23 @@ ggsave(filename = "gc_maxes_alldata.tiff", width = 8, height = 5, units = "in")
 
 
 #Statistics
-plot1$pfu_inoc <- relevel(as.factor(plot1$pfu_inoc), ref = "200")
-plot1$plot <- relevel(as.factor(plot1$plot), ref = "0")
-plot1$phage[is.na(plot1$phage)] <- "None"
-curve1_model <- lm(max~plot + phage + phage:plot, 
-                   data = plot1[plot1$plot %in% 
-                                  c("+ Ctrl", "+ Ctrl Shock", 0, 5, 90, 180, 
-                                    270, 360) &
-                                  plot1$pfu_inoc %in% c(0, 200),])
-anova(curve1_model)
-summary(curve1_model)
-curve1_aovmodel <- aov(max~plot + phage + phage:plot, 
-                       data = plot1[plot1$plot %in% 
-                                      c("+ Ctrl", "+ Ctrl Shock", 0, 5, 90, 180, 
-                                        270, 360) &
-                                      plot1$pfu_inoc %in% c(0, 200),])
-summary(curve1_aovmodel) #to check that it's the same numbers
-TukeyHSD(curve1_aovmodel, "plot")
+# plot1$pfu_inoc <- relevel(as.factor(plot1$pfu_inoc), ref = "200")
+# plot1$plot <- relevel(as.factor(plot1$plot), ref = "0")
+# plot1$phage[is.na(plot1$phage)] <- "None"
+# curve1_model <- lm(max~plot + phage + phage:plot, 
+#                    data = plot1[plot1$plot %in% 
+#                                   c("+ Ctrl", "+ Ctrl Shock", 0, 5, 90, 180, 
+#                                     270, 360) &
+#                                   plot1$pfu_inoc %in% c(0, 200),])
+# anova(curve1_model)
+# summary(curve1_model)
+# curve1_aovmodel <- aov(max~plot + phage + phage:plot, 
+#                        data = plot1[plot1$plot %in% 
+#                                       c("+ Ctrl", "+ Ctrl Shock", 0, 5, 90, 180, 
+#                                         270, 360) &
+#                                       plot1$pfu_inoc %in% c(0, 200),])
+# summary(curve1_aovmodel) #to check that it's the same numbers
+# TukeyHSD(curve1_aovmodel, "plot")
 
 #Combined Temperature Figure ####
 
@@ -498,14 +510,14 @@ ggsave(filename = "gc_maxes_varypfu.tiff", width = 8, height = 5, units = "in")
 
 #Saline ----
 saline_data <- read.csv("Saline-Survival.csv", stringsAsFactors = F)
-saline_data$Saline.Concentration..M.[saline_data$Saline.Concentration..M. == "0.17 (LB)"] <- "0.17"
-saline_data$Duration.of.shock..m. <- factor(saline_data$Duration.of.shock..m.)
+#saline_data$Saline.Concentration..M.[saline_data$Saline.Concentration..M. == "0.17 (LB)"] <- "0.17"
+#saline_data$Duration.of.shock..m. <- factor(saline_data$Duration.of.shock..m.)
 saline_data$Saline.Concentration..M. <- factor(saline_data$Saline.Concentration..M.)
 saline_data$pct_surv <- 100*saline_data$Plate.Count/mean(
-  saline_data$Plate.Count[saline_data$Saline.Concentration..M. == 0.17 &
+  saline_data$Plate.Count[saline_data$Saline.Concentration..M. == "0.17 (LB)" &
                             saline_data$Duration.of.shock..m. == 5])
 saline_limit_detection <- 100*1/mean(
-  saline_data$Plate.Count[saline_data$Saline.Concentration..M. == 0.17 &
+  saline_data$Plate.Count[saline_data$Saline.Concentration..M. == "0.17 (LB)" &
                             saline_data$Duration.of.shock..m. == 5])
 
 saline_summary <- dplyr::summarize(group_by(saline_data, Saline.Concentration..M., 
@@ -537,6 +549,9 @@ ggplot(data = saline_summary, aes(x = Duration.of.shock..m.,
                                   group = Saline.Concentration..M.)) +
   geom_point(size = 3) + geom_line(lwd = 1.5) +
   theme_bw() +
+  theme(panel.grid = element_blank(),
+        axis.title = element_text(size = 18),
+        axis.text = element_text(size = 16)) +
   labs(x = "Duration of Shock (min)", 
        y = "Percent Survival (%)") +
   scale_color_manual(name = "Saline\nConcentration (M)",
@@ -544,27 +559,29 @@ ggplot(data = saline_summary, aes(x = Duration.of.shock..m.,
   scale_y_continuous(breaks = c(100, 10, 1),
                      labels = c("100", "10", "1"),
                      trans="log10") +
+  scale_x_continuous(limits = c(0, 90),
+                     breaks = c(0, 30, 60, 90)) +
   geom_hline(yintercept = 100, lty = 2, lwd = 1.15) +
   geom_hline(yintercept = saline_limit_detection, lty = 3, lwd = 1.15)
 ggsave(filename = "saline_bydur.tiff", width = 8, height = 5, units = "in")
 
 #Statistics
-saline_summary$Duration.of.shock..m. <- as.numeric(as.character(
-  saline_summary$Duration.of.shock..m.))
-saline_summary$Saline.Concentration..M. <- relevel(
-  saline_summary$Saline.Concentration..M., ref = "0.17")
-saline_model <- lm(log10(mean_pct_surv) ~ Saline.Concentration..M. +
-                     Saline.Concentration..M.:Duration.of.shock..m.,
-                   data = saline_summary)
-anova(saline_model)
-summary(saline_model)
+# saline_summary$Duration.of.shock..m. <- as.numeric(as.character(
+#   saline_summary$Duration.of.shock..m.))
+# saline_summary$Saline.Concentration..M. <- relevel(
+#   saline_summary$Saline.Concentration..M., ref = "0.17")
+# saline_model <- lm(log10(mean_pct_surv) ~ Saline.Concentration..M. +
+#                      Saline.Concentration..M.:Duration.of.shock..m.,
+#                    data = saline_summary)
+# anova(saline_model)
+# summary(saline_model)
 
 #Urea ----
 
 #Read & factorize data
 urea_data <- read.csv("Urea-Survival.csv")
 urea_data$Urea.concentration..M. <- factor(urea_data$Urea.concentration..M.)
-urea_data$Duration.of.shock..m. <- factor(urea_data$Duration.of.shock..m.)
+#urea_data$Duration.of.shock..m. <- factor(urea_data$Duration.of.shock..m.)
 #Calculate percent survival
 urea_data$pct_surv <- 100*urea_data$Plate.count/mean(
   urea_data$Plate.count[urea_data$Urea.concentration..M. == 0 &
@@ -615,6 +632,9 @@ ggplot(data = urea_summary, aes(x = Duration.of.shock..m.,
   geom_point(size = 3) + 
   geom_line(lwd = 1.5, aes(x = Duration.of.shock..m., y = mean_pct_surv_lines)) +
   theme_bw() + 
+  theme(panel.grid = element_blank(),
+        axis.title = element_text(size = 18),
+        axis.text = element_text(size = 16)) +
   labs(x = "Duration of Shock (min)", y = "Percent Survival (%)") +
   geom_hline(yintercept = 100, lty = 2, lwd = 1.15) + 
   geom_hline(yintercept = urea_limit_detection, lty = 3, lwd = 1.15) +
@@ -628,10 +648,10 @@ ggplot(data = urea_summary, aes(x = Duration.of.shock..m.,
 ggsave(filename = "urea_byduration.tiff", width = 8, height = 5, units = "in")
 
 #Statistics
-urea_summary$Duration.of.shock..m. <- as.numeric(as.character(
-  urea_summary$Duration.of.shock..m.))
-urea_model <- lm(log10(mean_pct_surv+1) ~ Urea.concentration..M. + 
-                   Urea.concentration..M.:Duration.of.shock..m.,
-                 data = urea_summary)
-anova(urea_model)
-summary(urea_model)
+# urea_summary$Duration.of.shock..m. <- as.numeric(as.character(
+#   urea_summary$Duration.of.shock..m.))
+# urea_model <- lm(log10(mean_pct_surv+1) ~ Urea.concentration..M. + 
+#                    Urea.concentration..M.:Duration.of.shock..m.,
+#                  data = urea_summary)
+# anova(urea_model)
+# summary(urea_model)
