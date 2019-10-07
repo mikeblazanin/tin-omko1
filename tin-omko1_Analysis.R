@@ -75,12 +75,42 @@ tempr_plot
 ggsave(filename = "temp_surv.tiff", width = 8, height = 5, units = "in")
 
 #Statistics
-# tempr_sum$Temp <- as.factor(tempr_sum$Temp)
-# tempr_sum$Duration <- as.numeric(tempr_sum$Duration)
-# tempr_model <- lm(log10(pct_surv_mean+1)~Temp + Duration:Temp, 
-#                   data = tempr_sum)
-# anova(tempr_model)
-# summary(tempr_model)
+#Take subset of data that has 3+ measures above limit of detection
+#in treatment
+tempr_sum_stats <- tempr_sum[as.numeric(as.character(tempr_sum$Temp)) <= 70, ]
+tempr_sum_stats$Temp <- as.factor(tempr_sum_stats$Temp)
+tempr_sum_stats$Duration <- as.numeric(tempr_sum_stats$Duration)
+
+#Run with 55C as reference (so we can test for sig dift slope than 0)
+tempr_model_55 <- lm(log10(mean_pct_surv)~Temp + Duration:Temp,
+                  data = tempr_sum_stats)
+anova(tempr_model_55)
+summary(tempr_model_55)
+
+#Run with 60C as reference
+tempr_sum_stats$Temp <- relevel(tempr_sum_stats$Temp, "60")
+tempr_model_60 <- lm(log10(mean_pct_surv)~Temp + Duration:Temp,
+                 data = tempr_sum_stats)
+summary(tempr_model_60)
+
+#Run with 65C as reference
+tempr_sum_stats$Temp <- relevel(tempr_sum_stats$Temp, "65")
+tempr_model_65 <- lm(log10(mean_pct_surv)~Temp + Duration:Temp,
+                     data = tempr_sum_stats)
+summary(tempr_model_65)
+
+#Run with 70C as reference
+tempr_sum_stats$Temp <- relevel(tempr_sum_stats$Temp, "70")
+tempr_model_70 <- lm(log10(mean_pct_surv)~Temp + Duration:Temp,
+                     data = tempr_sum_stats)
+summary(tempr_model_70)
+
+#Results          Estimate  Std. Error  t value Pr(>|t|)    
+#Temp55:Duration  0.0008093  0.0008223   0.984   0.3538  
+#Temp60:Duration  0.0004729  0.0008223   0.575   0.5810    
+#Temp65:Duration -0.0027540  0.0008223  -3.349   0.0101 *  
+#Temp70:Duration -0.0181560  0.0008223 -22.080 1.87e-08 ***
+
 
 #Temperature Duration Survival ----
 temprdur <- read.csv("Temperature-Duration-Survival.csv")
@@ -126,10 +156,9 @@ temprdur_plot
 ggsave(filename = "temp_duration_surv.tiff", width = 8, height = 5, units = "in")
 
 #Statistics
-# colnames(temprdur_sum)[2] <- "Duration"
-# temprdur_model <- lm(log10(pct_mean)~Sample*Duration, data = temprdur_sum)
-# anova(temprdur_model)
-# summary(temprdur_model)
+colnames(temprdur_sum)[2] <- "Duration"
+temprdur_model <- lm(log10(pct_mean)~Sample*Duration, data = temprdur_sum)
+anova(temprdur_model)
 
 
 #Growth curve analysis ----
@@ -355,7 +384,7 @@ for (i in 1:nrow(plot1)) {
 
 #Reformat columns
 plot1$phageshock <- factor(plot1$phageshock,
-                           levels = c(NA, 0, 5, 90, 180, 270, 360))
+                           levels = c("NA", 0, 5, 90, 180, 270, 360))
 plot1$plot <- factor(plot1$plot,
                         levels = c("+ Ctrl", "+ Ctrl Shock",
                                    "0", "5", "90", "180", "270",
@@ -436,19 +465,58 @@ ggsave(filename = "gc_maxes_alldata.tiff", width = 8, height = 5, units = "in")
 
 
 #Statistics
-# plot1$pfu_inoc <- relevel(as.factor(plot1$pfu_inoc), ref = "200")
-# plot1$plot <- relevel(as.factor(plot1$plot), ref = "0")
-# plot1$phage[is.na(plot1$phage)] <- "None"
-# curve1_model <- lm(max~plot + phage + phage:plot, 
-#                    data = plot1[plot1$plot %in% 
-#                                   c("+ Ctrl", "+ Ctrl Shock", 0, 5, 90, 180, 
-#                                     270, 360) &
-#                                   plot1$pfu_inoc %in% c(0, 200),])
-# anova(curve1_model)
-# summary(curve1_model)
-# curve1_aovmodel <- aov(max~plot + phage + phage:plot, 
-#                        data = plot1[plot1$plot %in% 
-#                                       c("+ Ctrl", "+ Ctrl Shock", 0, 5, 90, 180, 
+gc1_stats <- plot1[plot1$plot %in%
+                     c("+ Ctrl", "+ Ctrl Shock", 0, 5, 90, 180,270, 360) &
+                     plot1$pfu_inoc %in% c(0, 200),]
+gc1_stats$pfu_inoc <- relevel(as.factor(gc1_stats$pfu_inoc), ref = "200")
+gc1_stats$plot <- relevel(as.factor(gc1_stats$plot), ref = "0")
+gc1_stats$phage[is.na(gc1_stats$phage)] <- "None"
+curve1_model <- lm(max~plot + phage + phage:plot,
+                   data = gc1_stats)
+anova(curve1_model)
+
+#Results
+##significant effect of heat treatment:
+#plot        6 9.6585 1.60976 1478.546 < 2.2e-16 ***
+##Significant variation between replicate stocks:
+#phage       4 0.0598 0.01494   13.726 1.403e-07 ***
+#plot:phage 11 0.3348 0.03043   27.952 < 2.2e-16 ***
+
+
+#Contrasts of interest:
+# +shock - 0
+# 0-5
+# 5-90
+# 90-180
+# 180-270
+
+#Look for contrasts (with 0):
+summary(curve1_model)
+
+#Contrasts (with 90):
+gc1_stats$plot <- relevel(as.factor(gc1_stats$plot), ref = "90")
+curve1_model <- lm(max~plot + phage + phage:plot,
+                   data = gc1_stats)
+summary(curve1_model)
+
+#Contrasts (with 180):
+gc1_stats$plot <- relevel(as.factor(gc1_stats$plot), ref = "180")
+curve1_model <- lm(max~plot + phage + phage:plot,
+                   data = gc1_stats)
+summary(curve1_model)
+
+#Contrasts of interest
+#(plot0) - plot+ Ctrl Shock            1.160120   0.023332  49.723  < 2e-16 ***
+#(plot0) - plot5                       0.555637   0.026941  20.624  < 2e-16 ***
+#(plot90) - plot5                      0.22287    0.02694   8.272 7.34e-11 ***
+#(plot90) - plot180                    0.01434    0.02694   0.532 0.596859    
+#(plot180) - plot270                   0.110953   0.026941   4.118 0.000146 ***
+
+
+
+# curve1_aovmodel <- aov(max~plot + phage + phage:plot,
+#                        data = plot1[plot1$plot %in%
+#                                       c("+ Ctrl", "+ Ctrl Shock", 0, 5, 90, 180,
 #                                         270, 360) &
 #                                       plot1$pfu_inoc %in% c(0, 200),])
 # summary(curve1_aovmodel) #to check that it's the same numbers
@@ -566,15 +634,14 @@ ggplot(data = saline_summary, aes(x = Duration.of.shock..m.,
 ggsave(filename = "saline_bydur.tiff", width = 8, height = 5, units = "in")
 
 #Statistics
-# saline_summary$Duration.of.shock..m. <- as.numeric(as.character(
-#   saline_summary$Duration.of.shock..m.))
-# saline_summary$Saline.Concentration..M. <- relevel(
-#   saline_summary$Saline.Concentration..M., ref = "0.17")
-# saline_model <- lm(log10(mean_pct_surv) ~ Saline.Concentration..M. +
-#                      Saline.Concentration..M.:Duration.of.shock..m.,
-#                    data = saline_summary)
-# anova(saline_model)
-# summary(saline_model)
+saline_summary$Duration.of.shock..m. <- as.numeric(as.character(
+  saline_summary$Duration.of.shock..m.))
+saline_summary$Saline.Concentration..M. <- relevel(
+  saline_summary$Saline.Concentration..M., ref = "0.17 (LB)")
+saline_model <- lm(log10(mean_pct_surv) ~ Saline.Concentration..M. +
+                     Saline.Concentration..M.:Duration.of.shock..m.,
+                   data = saline_summary)
+anova(saline_model)
 
 #Urea ----
 
@@ -648,10 +715,40 @@ ggplot(data = urea_summary, aes(x = Duration.of.shock..m.,
 ggsave(filename = "urea_byduration.tiff", width = 8, height = 5, units = "in")
 
 #Statistics
-# urea_summary$Duration.of.shock..m. <- as.numeric(as.character(
-#   urea_summary$Duration.of.shock..m.))
-# urea_model <- lm(log10(mean_pct_surv+1) ~ Urea.concentration..M. + 
-#                    Urea.concentration..M.:Duration.of.shock..m.,
-#                  data = urea_summary)
-# anova(urea_model)
-# summary(urea_model)
+urea_stats <- urea_summary[as.numeric(as.character(
+  urea_summary$Urea.concentration..M.)) <= 5 &
+    urea_summary$bd == FALSE, ]
+urea_stats$Duration.of.shock..m. <- as.numeric(as.character(
+  urea_stats$Duration.of.shock..m.))
+
+#With 0 as reference
+urea_stats$Urea.concentration..M. <- relevel(urea_stats$Urea.concentration..M., "0")
+urea_model_0 <- lm(log10(mean_pct_surv) ~ Urea.concentration..M. +
+                   Urea.concentration..M.:Duration.of.shock..m.,
+                 data = urea_stats)
+
+#General results
+anova(urea_model_0)
+
+#                                               Df  Sum Sq Mean Sq F value    Pr(>F)    
+# Urea.concentration..M.                        5 1.86958 0.37392  229.48 1.779e-11 ***
+# Urea.concentration..M.:Duration.of.shock..m.  6 1.25614 0.20936  128.49 3.536e-10 ***
+
+#Contrasts of interest:
+#0M with slope 0
+#1M with slope 0
+#2M with slope 0
+#3M with slope 0
+#4M with slope 0
+#5M with slope 0
+
+#Get contrasts (all slopes are contrasted with 0 already) 
+summary(urea_model_0)
+
+#Results
+# Urea.concentration..M.0:Duration.of.shock..m.  0.0013618  0.0005309   2.565  0.02478 *  
+# Urea.concentration..M.1:Duration.of.shock..m. -0.0023029  0.0006328  -3.639  0.00339 ** 
+# Urea.concentration..M.2:Duration.of.shock..m. -0.0019510  0.0006328  -3.083  0.00948 ** 
+# Urea.concentration..M.3:Duration.of.shock..m. -0.0052271  0.0006328  -8.260 2.71e-06 ***
+# Urea.concentration..M.4:Duration.of.shock..m. -0.0086706  0.0006328 -13.701 1.09e-08 ***
+# Urea.concentration..M.5:Duration.of.shock..m. -0.0228416  0.0010365 -22.037 4.48e-11 ***
