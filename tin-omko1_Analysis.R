@@ -81,10 +81,57 @@ tempr_sum_stats <- tempr_sum[as.numeric(as.character(tempr_sum$Temp)) <= 70, ]
 tempr_sum_stats$Temp <- as.factor(tempr_sum_stats$Temp)
 tempr_sum_stats$Duration <- as.numeric(tempr_sum_stats$Duration)
 
+#Define function to fix two-tailed tests into one-tailed & apply Bonferroni correction
+adjust_ttests <- function(summary_coefficients, alternative = NULL,
+                          correction = "Bonferroni", num_tests = NULL,
+                          alpha_lvl = 0.05) {
+  if (correction == "Bonferroni" & is.null(num_tests)) {
+    stop("Bonferroni correction with no number of tests supplied")
+  }
+  
+  summary_coefficients <- cbind(summary_coefficients, "One-tailed Pr" = NA)
+  sig_list <- rep(NA, nrow(summary_coefficients))
+  #Fix p-values from two-tailed to one-tailed
+  for (i in 1:nrow(summary_coefficients)) {
+    if (alternative == "greater") { #one tailed test for higher values than expected
+      if (summary_coefficients[i, 3] < 0) { #p-values will need to be halved & flipped
+        summary_coefficients[i, 5] <- 1-(summary_coefficients[i, 4]/2)
+      } else if (summary_coefficients[i, 3] > 0) {#p-values need to be halved
+        summary_coefficients[i, 5] <- summary_coefficients[i, 4]/2
+      }
+    } else if (alternative == "less") { #one tailed test for lower values than expected
+      if (summary_coefficients[i, 3] > 0) { #p-values will need to be halved & flipped
+        summary_coefficients[i, 5] <- 1-(summary_coefficients[i, 4]/2)
+      } else if (summary_coefficients[i, 3] < 0) { #p-values need to be halved
+        summary_coefficients[i, 5] <- summary_coefficients[i, 4]/2
+      }
+    } else {} #remain a two-tailed test
+    
+    #Grab relevant p-value
+    if (!is.na(summary_coefficients[i, 5])) {
+      p_val <- summary_coefficients[i, 5]
+    } else {
+      p_val <- summary_coefficients[i, 4]
+    }
+    
+    #Make correction as needed
+    if (correction == "Bonferroni") {
+      if (p_val < alpha_lvl/num_tests) {sig_list[i] <- "*"
+      } else {sig_list[i] <- ""}
+    } else {
+      if (p_val < alpha_lvl) {sig_list[i] <- "*"
+      } else {sig_list[i] <- ""}
+    }
+  }
+  summary_coefficients <- cbind(summary_coefficients, "Adj Signfct" = sig_list)
+  return(summary_coefficients)
+}
+
 #Run with 55C as reference (so we can test for sig dift slope than 0)
 tempr_model_55 <- lm(log10(mean_pct_surv)~Temp + Duration:Temp,
                   data = tempr_sum_stats)
 anova(tempr_model_55)
+qqnorm(tempr_model_55$residuals)
 summary(tempr_model_55)
 
 #Run with 60C as reference
@@ -159,7 +206,7 @@ ggsave(filename = "temp_duration_surv.tiff", width = 8, height = 5, units = "in"
 colnames(temprdur_sum)[2] <- "Duration"
 temprdur_model <- lm(log10(pct_mean)~Sample*Duration, data = temprdur_sum)
 anova(temprdur_model)
-
+summary(temprdur_model)
 
 #Growth curve analysis ----
 
@@ -464,7 +511,7 @@ gc_plot1_alldata
 ggsave(filename = "gc_maxes_alldata.tiff", width = 8, height = 5, units = "in")
 
 
-#Statistics
+#Statistics with stocks un-summarized
 gc1_stats <- plot1[plot1$plot %in%
                      c("+ Ctrl", "+ Ctrl Shock", 0, 5, 90, 180,270, 360) &
                      plot1$pfu_inoc %in% c(0, 200),]
@@ -483,36 +530,49 @@ anova(curve1_model)
 #plot:phage 11 0.3348 0.03043   27.952 < 2.2e-16 ***
 
 
-#Contrasts of interest:
-# +shock - 0
-# 0-5
-# 5-90
-# 90-180
-# 180-270
+#Contrasts of interest (using summarized stocks):
+# All pairs among +ctrl, +shock, 0, 5, 90, 180, 270
+
+#Look for contrasts (with +ctrl):
+plot1_sum$plot <- relevel(as.factor(plot1_sum$plot), ref = "+ Ctrl")
+curve1_model_ctrl <- lm(max~plot, data = plot1_sum)
+summary(curve1_model_ctrl)
+
+#Look for contrasts (with +shock):
+plot1_sum$plot <- relevel(as.factor(plot1_sum$plot), ref = "+ Ctrl Shock")
+curve1_model_shock <- lm(max~plot, data = plot1_sum)
+summary(curve1_model_shock)
 
 #Look for contrasts (with 0):
-summary(curve1_model)
+plot1_sum$plot <- relevel(as.factor(plot1_sum$plot), ref = "0")
+curve1_model0 <- lm(max~plot, data = plot1_sum)
+summary(curve1_model0)
+
+#Contrasts (with 5):
+gc1_stats$plot <- relevel(as.factor(gc1_stats$plot), ref = "5")
+curve1_model5 <- lm(max~plot, data = gc1_stats)
+summary(curve1_model5)
 
 #Contrasts (with 90):
 gc1_stats$plot <- relevel(as.factor(gc1_stats$plot), ref = "90")
-curve1_model <- lm(max~plot + phage + phage:plot,
-                   data = gc1_stats)
-summary(curve1_model)
+curve1_model90 <- lm(max~plot, data = gc1_stats)
+summary(curve1_model90)
 
 #Contrasts (with 180):
 gc1_stats$plot <- relevel(as.factor(gc1_stats$plot), ref = "180")
-curve1_model <- lm(max~plot + phage + phage:plot,
-                   data = gc1_stats)
-summary(curve1_model)
+curve1_model180 <- lm(max~plot, data = gc1_stats)
+summary(curve1_model180)
 
-#Contrasts of interest
-#(plot0) - plot+ Ctrl Shock            1.160120   0.023332  49.723  < 2e-16 ***
-#(plot0) - plot5                       0.555637   0.026941  20.624  < 2e-16 ***
-#(plot90) - plot5                      0.22287    0.02694   8.272 7.34e-11 ***
-#(plot90) - plot180                    0.01434    0.02694   0.532 0.596859    
-#(plot180) - plot270                   0.110953   0.026941   4.118 0.000146 ***
-
-
+#We are running 7!/5!*2! = 21 paired t-tests
+#Therefore Bonferroni correction alpha = 0.05/21 = 0.00238
+factorial_stats <- function(data, variable) {
+  var_levels <- unique(data[, variable])
+  
+  
+  output <- data.frame(eval(variable) = var_levels,
+                       "groups" = c())
+  return(output)
+}
 
 # curve1_aovmodel <- aov(max~plot + phage + phage:plot,
 #                        data = plot1[plot1$plot %in%
@@ -729,6 +789,7 @@ urea_model_0 <- lm(log10(mean_pct_surv) ~ Urea.concentration..M. +
 
 #General results
 anova(urea_model_0)
+qqnorm(urea_model_0$residuals)
 
 #                                               Df  Sum Sq Mean Sq F value    Pr(>F)    
 # Urea.concentration..M.                        5 1.86958 0.37392  229.48 1.779e-11 ***
@@ -743,12 +804,10 @@ anova(urea_model_0)
 #5M with slope 0
 
 #Get contrasts (all slopes are contrasted with 0 already) 
-summary(urea_model_0)
+urea_model_0_summary <- summary(urea_model_0)
+urea_model_0_summary
 
-#Results
-# Urea.concentration..M.0:Duration.of.shock..m.  0.0013618  0.0005309   2.565  0.02478 *  
-# Urea.concentration..M.1:Duration.of.shock..m. -0.0023029  0.0006328  -3.639  0.00339 ** 
-# Urea.concentration..M.2:Duration.of.shock..m. -0.0019510  0.0006328  -3.083  0.00948 ** 
-# Urea.concentration..M.3:Duration.of.shock..m. -0.0052271  0.0006328  -8.260 2.71e-06 ***
-# Urea.concentration..M.4:Duration.of.shock..m. -0.0086706  0.0006328 -13.701 1.09e-08 ***
-# Urea.concentration..M.5:Duration.of.shock..m. -0.0228416  0.0010365 -22.037 4.48e-11 ***
+#Print results (correcting to be one-tailed t-tests for negative slopes)
+print(adjust_ttests(urea_model_0_summary$coefficients,
+                    alternative = "less",
+                    num_tests = 6)[, c(1, 3, 4, 5, 6)])
