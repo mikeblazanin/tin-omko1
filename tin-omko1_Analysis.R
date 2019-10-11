@@ -132,25 +132,32 @@ tempr_model_55 <- lm(log10(mean_pct_surv)~Temp + Duration:Temp,
                   data = tempr_sum_stats)
 anova(tempr_model_55)
 qqnorm(tempr_model_55$residuals)
-summary(tempr_model_55)
+print(adjust_ttests(summary(tempr_model_55)$coefficients,
+                    alternative = "less",
+                    num_tests = 4))
 
 #Run with 60C as reference
 tempr_sum_stats$Temp <- relevel(tempr_sum_stats$Temp, "60")
 tempr_model_60 <- lm(log10(mean_pct_surv)~Temp + Duration:Temp,
                  data = tempr_sum_stats)
-summary(tempr_model_60)
-
+print(adjust_ttests(summary(tempr_model_60)$coefficients,
+                    alternative = "less",
+                    num_tests = 4))
 #Run with 65C as reference
 tempr_sum_stats$Temp <- relevel(tempr_sum_stats$Temp, "65")
 tempr_model_65 <- lm(log10(mean_pct_surv)~Temp + Duration:Temp,
                      data = tempr_sum_stats)
-summary(tempr_model_65)
+print(adjust_ttests(summary(tempr_model_65)$coefficients,
+                    alternative = "less",
+                    num_tests = 4))
 
 #Run with 70C as reference
 tempr_sum_stats$Temp <- relevel(tempr_sum_stats$Temp, "70")
 tempr_model_70 <- lm(log10(mean_pct_surv)~Temp + Duration:Temp,
                      data = tempr_sum_stats)
-summary(tempr_model_70)
+print(adjust_ttests(summary(tempr_model_70)$coefficients,
+                    alternative = "less",
+                    num_tests = 4))
 
 #Results          Estimate  Std. Error  t value Pr(>|t|)    
 #Temp55:Duration  0.0008093  0.0008223   0.984   0.3538  
