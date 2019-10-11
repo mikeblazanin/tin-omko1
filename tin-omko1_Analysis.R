@@ -75,22 +75,14 @@ tempr_plot
 ggsave(filename = "temp_surv.tiff", width = 8, height = 5, units = "in")
 
 #Statistics
-#Take subset of data that has 3+ measures above limit of detection
-#in treatment
-tempr_sum_stats <- tempr_sum[as.numeric(as.character(tempr_sum$Temp)) <= 70, ]
-tempr_sum_stats$Temp <- as.factor(tempr_sum_stats$Temp)
-tempr_sum_stats$Duration <- as.numeric(tempr_sum_stats$Duration)
 
 #Define function to fix two-tailed tests into one-tailed & apply Bonferroni correction
-adjust_ttests <- function(summary_coefficients, alternative = NULL,
-                          correction = "Bonferroni", num_tests = NULL,
-                          alpha_lvl = 0.05) {
-  if (correction == "Bonferroni" & is.null(num_tests)) {
-    stop("Bonferroni correction with no number of tests supplied")
+adjust_ttests <- function(summary_coefficients, alternative = NULL) {
+  if (!(alternative %in% c("greater", "less"))) {
+    warning("alternative has not been provided, or is not 'greater' or 'less'")
   }
   
   summary_coefficients <- cbind(summary_coefficients, "One-tailed Pr" = NA)
-  sig_list <- rep(NA, nrow(summary_coefficients))
   #Fix p-values from two-tailed to one-tailed
   for (i in 1:nrow(summary_coefficients)) {
     if (alternative == "greater") { #one tailed test for higher values than expected
@@ -106,65 +98,39 @@ adjust_ttests <- function(summary_coefficients, alternative = NULL,
         summary_coefficients[i, 5] <- summary_coefficients[i, 4]/2
       }
     } else {} #remain a two-tailed test
-    
-    #Grab relevant p-value
-    if (!is.na(summary_coefficients[i, 5])) {
-      p_val <- summary_coefficients[i, 5]
-    } else {
-      p_val <- summary_coefficients[i, 4]
-    }
-    
-    #Make correction as needed
-    if (correction == "Bonferroni") {
-      if (p_val < alpha_lvl/num_tests) {sig_list[i] <- "*"
-      } else {sig_list[i] <- ""}
-    } else {
-      if (p_val < alpha_lvl) {sig_list[i] <- "*"
-      } else {sig_list[i] <- ""}
-    }
   }
-  summary_coefficients <- cbind(summary_coefficients, "Adj Signfct" = sig_list)
   return(summary_coefficients)
 }
 
-#Run with 55C as reference (so we can test for sig dift slope than 0)
+#Take subset of data that has 3+ measures above limit of detection
+#in treatment
+tempr_sum_stats <- tempr_sum[as.numeric(as.character(tempr_sum$Temp)) <= 70, ]
+tempr_sum_stats$Temp <- as.factor(tempr_sum_stats$Temp)
+tempr_sum_stats$Duration <- as.numeric(tempr_sum_stats$Duration)
+
+#Run stats
 tempr_model_55 <- lm(log10(mean_pct_surv)~Temp + Duration:Temp,
-                  data = tempr_sum_stats)
+                     data = tempr_sum_stats)
 anova(tempr_model_55)
 qqnorm(tempr_model_55$residuals)
-print(adjust_ttests(summary(tempr_model_55)$coefficients,
-                    alternative = "less",
-                    num_tests = 4))
 
-#Run with 60C as reference
-tempr_sum_stats$Temp <- relevel(tempr_sum_stats$Temp, "60")
-tempr_model_60 <- lm(log10(mean_pct_surv)~Temp + Duration:Temp,
-                 data = tempr_sum_stats)
-print(adjust_ttests(summary(tempr_model_60)$coefficients,
-                    alternative = "less",
-                    num_tests = 4))
-#Run with 65C as reference
-tempr_sum_stats$Temp <- relevel(tempr_sum_stats$Temp, "65")
-tempr_model_65 <- lm(log10(mean_pct_surv)~Temp + Duration:Temp,
-                     data = tempr_sum_stats)
-print(adjust_ttests(summary(tempr_model_65)$coefficients,
-                    alternative = "less",
-                    num_tests = 4))
+#Get contrasts (all slopes are contrasted with 0 already) 
+tempr_coeffs <- summary(tempr_model_55)$coefficients
 
-#Run with 70C as reference
-tempr_sum_stats$Temp <- relevel(tempr_sum_stats$Temp, "70")
-tempr_model_70 <- lm(log10(mean_pct_surv)~Temp + Duration:Temp,
-                     data = tempr_sum_stats)
-print(adjust_ttests(summary(tempr_model_70)$coefficients,
-                    alternative = "less",
-                    num_tests = 4))
+#Take the subset we actually care about (just the slopes)
+tempr_coeffs <- tempr_coeffs[5:8, ]
 
-#Results          Estimate  Std. Error  t value Pr(>|t|)    
-#Temp55:Duration  0.0008093  0.0008223   0.984   0.3538  
-#Temp60:Duration  0.0004729  0.0008223   0.575   0.5810    
-#Temp65:Duration -0.0027540  0.0008223  -3.349   0.0101 *  
-#Temp70:Duration -0.0181560  0.0008223 -22.080 1.87e-08 ***
+#Adjust t-tests to be one-tailed
+tempr_coeffs <- adjust_ttests(tempr_coeffs, alternative = "less")
 
+#Add corrected p-values
+tempr_coeffs <- cbind(tempr_coeffs, 
+                      "Adj p" = p.adjust(tempr_coeffs[, "One-tailed Pr"], 
+                                         method = "bonferroni"))
+tempr_coeffs
+
+#For degrees of freedom
+summary(tempr_model_55)
 
 #Temperature Duration Survival ----
 temprdur <- read.csv("Temperature-Duration-Survival.csv")
@@ -782,39 +748,35 @@ ggplot(data = urea_summary, aes(x = Duration.of.shock..m.,
 ggsave(filename = "urea_byduration.tiff", width = 8, height = 5, units = "in")
 
 #Statistics
+
+#Take subset of data that has 3+ observations in treatment & exclude any bd points
 urea_stats <- urea_summary[as.numeric(as.character(
   urea_summary$Urea.concentration..M.)) <= 5 &
     urea_summary$bd == FALSE, ]
 urea_stats$Duration.of.shock..m. <- as.numeric(as.character(
   urea_stats$Duration.of.shock..m.))
 
-#With 0 as reference
-urea_stats$Urea.concentration..M. <- relevel(urea_stats$Urea.concentration..M., "0")
+#Run stats
 urea_model_0 <- lm(log10(mean_pct_surv) ~ Urea.concentration..M. +
-                   Urea.concentration..M.:Duration.of.shock..m.,
-                 data = urea_stats)
-
-#General results
+                     Urea.concentration..M.:Duration.of.shock..m.,
+                   data = urea_stats)
 anova(urea_model_0)
 qqnorm(urea_model_0$residuals)
 
-#                                               Df  Sum Sq Mean Sq F value    Pr(>F)    
-# Urea.concentration..M.                        5 1.86958 0.37392  229.48 1.779e-11 ***
-# Urea.concentration..M.:Duration.of.shock..m.  6 1.25614 0.20936  128.49 3.536e-10 ***
-
-#Contrasts of interest:
-#0M with slope 0
-#1M with slope 0
-#2M with slope 0
-#3M with slope 0
-#4M with slope 0
-#5M with slope 0
-
 #Get contrasts (all slopes are contrasted with 0 already) 
-urea_model_0_summary <- summary(urea_model_0)
-urea_model_0_summary
+urea_coeffs <- summary(urea_model_0)$coefficients
 
-#Print results (correcting to be one-tailed t-tests for negative slopes)
-print(adjust_ttests(urea_model_0_summary$coefficients,
-                    alternative = "less",
-                    num_tests = 6)[, c(1, 3, 4, 5, 6)])
+#Take the subset we actually care about (just the slopes)
+urea_coeffs <- urea_coeffs[7:12, ]
+
+#Adjust t-tests to be one-tailed
+urea_coeffs <- adjust_ttests(urea_coeffs, alternative = "less")
+
+#Add corrected p-values
+urea_coeffs <- cbind(urea_coeffs, 
+                      "Adj p" = p.adjust(urea_coeffs[, "One-tailed Pr"], 
+                                         method = "bonferroni"))
+urea_coeffs
+
+#For degrees of freedom:
+summary(urea_model_0)
