@@ -483,63 +483,66 @@ gc_plot1_alldata <- ggplot(data = plot1_sum_temp,
 gc_plot1_alldata
 ggsave(filename = "gc_maxes_alldata.tiff", width = 8, height = 5, units = "in")
 
+##Statistics
 
-#Statistics with stocks un-summarized
-gc1_stats <- plot1[plot1$plot %in%
+#ANOVA with replicate wells left in
+gc1_stats <- plot1[plot1$plot %in% 
                      c("+ Ctrl", "+ Ctrl Shock", 0, 5, 90, 180,270, 360) &
-                     plot1$pfu_inoc %in% c(0, 200),]
+                     plot1$pfu_inoc %in% c(0, 200), ]
 gc1_stats$pfu_inoc <- relevel(as.factor(gc1_stats$pfu_inoc), ref = "200")
 gc1_stats$plot <- relevel(as.factor(gc1_stats$plot), ref = "0")
 gc1_stats$phage[is.na(gc1_stats$phage)] <- "None"
 curve1_model <- lm(max~plot + phage + phage:plot,
                    data = gc1_stats)
 anova(curve1_model)
+summary(curve1_model)
 
-#Results
-##significant effect of heat treatment:
-#plot        6 9.6585 1.60976 1478.546 < 2.2e-16 ***
-##Significant variation between replicate stocks:
-#phage       4 0.0598 0.01494   13.726 1.403e-07 ***
-#plot:phage 11 0.3348 0.03043   27.952 < 2.2e-16 ***
+#Contrasts of interest:
+# 0, 5, 90, 180, 270 - all pairwise among each other (10x), using summarized
+#   stocks values
+# Each of the phage stocks at 0 w/ +Ctrl and +Shock (10x)
 
+#All pairs among 0, 5, 90, 180, 270
+gc1_stats_heatsonly <- plot1[plot1$plot %in% c(0, 5, 90, 180,270, 360) &
+                               plot1$pfu_inoc %in% c(0, 200), ]
+curve1_model_heatshocks <- aov(max~plot + phage + phage:plot,
+                               data = gc1_stats_heatsonly)
+summary(curve1_model_heatshocks)
 
-#Contrasts of interest (using summarized stocks):
-# All pairs among +ctrl, +shock, 0, 5, 90, 180, 270
+gc_heat_tukey <- TukeyHSD(curve1_model_heatshocks,
+                          which = "plot")
+gc_heat_tukey
 
-#Look for contrasts (with +ctrl):
-plot1_sum$plot <- relevel(as.factor(plot1_sum$plot), ref = "+ Ctrl")
-curve1_model_ctrl <- lm(max~plot, data = plot1_sum)
+#Each phage stock at 0 w/ +Ctrl and +Shock
+gc1_stats$plot <- relevel(gc1_stats$plot, "+ Ctrl")
+curve1_model_ctrl <- lm(max ~ phage:plot,
+                    data = gc1_stats)
 summary(curve1_model_ctrl)
 
-#Look for contrasts (with +shock):
-plot1_sum$plot <- relevel(as.factor(plot1_sum$plot), ref = "+ Ctrl Shock")
-curve1_model_shock <- lm(max~plot, data = plot1_sum)
+gc1_stats$plot <- relevel(gc1_stats$plot, "+ Ctrl Shock")
+curve1_model_shock <- lm(max ~ phage:plot,
+                         data = gc1_stats)
 summary(curve1_model_shock)
 
-#Look for contrasts (with 0):
-plot1_sum$plot <- relevel(as.factor(plot1_sum$plot), ref = "0")
-curve1_model0 <- lm(max~plot, data = plot1_sum)
-summary(curve1_model0)
-
-#Contrasts (with 5):
-gc1_stats$plot <- relevel(as.factor(gc1_stats$plot), ref = "5")
-curve1_model5 <- lm(max~plot, data = gc1_stats)
-summary(curve1_model5)
-
-#Contrasts (with 90):
-gc1_stats$plot <- relevel(as.factor(gc1_stats$plot), ref = "90")
-curve1_model90 <- lm(max~plot, data = gc1_stats)
-summary(curve1_model90)
-
-#Contrasts (with 180):
-gc1_stats$plot <- relevel(as.factor(gc1_stats$plot), ref = "180")
-curve1_model180 <- lm(max~plot, data = gc1_stats)
-summary(curve1_model180)
 
 #We are running 7!/5!*2! = 21 paired t-tests
 #Therefore Bonferroni correction alpha = 0.05/21 = 0.00238
-factorial_stats <- function(data, variable) {
-  var_levels <- unique(data[, variable])
+posthoc_stats <- function(data, variable, pairs_mtrx = NULL) {
+  #data should be a dataframe
+  #variable should be the name of the column to be evaluated
+  #if pairs_mtrx is not supplied, will run all pairwise comparisons
+  #  if pairs_mtrx is supplied, rows & columns match with the levels of
+  #  data$variable, and should be Boolean values indicating whether
+  #  a comparison should be run
+  
+  if (!is.null(pairs_mtrx) & class(data[variable]) != "factor") {
+    stop("pairs_mtrx is provided but data$variable is not a factor")
+  } else if (class(data[variable]) != "factor") {
+    data[variable] <- as.factor(data[variable])
+  }
+  
+  var_levels <- levels(data[variable])
+  
   
   
   output <- data.frame(eval(variable) = var_levels,
