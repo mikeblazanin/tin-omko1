@@ -1,6 +1,151 @@
 library(ggplot2)
 library(dplyr)
 
+###Needed general functions:
+#Define function to fix two-tailed tests into one-tailed & apply Bonferroni correction
+adjust_ttests <- function(summary_coefficients, alternative = NULL) {
+  if (!(alternative %in% c("greater", "less"))) {
+    warning("alternative has not been provided, or is not 'greater' or 'less'")
+  }
+  
+  summary_coefficients <- cbind(summary_coefficients, "One-tailed Pr" = NA)
+  #Fix p-values from two-tailed to one-tailed
+  for (i in 1:nrow(summary_coefficients)) {
+    if (alternative == "greater") { #one tailed test for higher values than expected
+      if (summary_coefficients[i, 3] < 0) { #p-values will need to be halved & flipped
+        summary_coefficients[i, 5] <- 1-(summary_coefficients[i, 4]/2)
+      } else if (summary_coefficients[i, 3] > 0) {#p-values need to be halved
+        summary_coefficients[i, 5] <- summary_coefficients[i, 4]/2
+      }
+    } else if (alternative == "less") { #one tailed test for lower values than expected
+      if (summary_coefficients[i, 3] > 0) { #p-values will need to be halved & flipped
+        summary_coefficients[i, 5] <- 1-(summary_coefficients[i, 4]/2)
+      } else if (summary_coefficients[i, 3] < 0) { #p-values need to be halved
+        summary_coefficients[i, 5] <- summary_coefficients[i, 4]/2
+      }
+    } else {} #remain a two-tailed test
+  }
+  return(summary_coefficients)
+}
+
+#Define function to generate letter groups for plotting of stats significance
+make_cld <- function(firstmate = NULL, secondmate = NULL, sig_matrix = NULL,
+                     p_vals = NULL, conf.level = 0.95) {
+  #compact letter display
+  #firstmate and secondmate should be matched lists of the two levels
+  # which the p vals correspond to the pairwise test between
+  #the order of the levels of firstmate & secondmade will be used to determine
+  # lettering (with the earlier levels having lower letters)
+  #where e.g. the first entry of each corresponds to the first p_vals entry
+  #Otherwise, provide a matrix (sig_matrix) with TRUE/FALSE entries denoting 
+  # whether each pair of levels is significantly different from one another
+  
+  if ((is.null(firstmate) | is.null(secondmate) | is.null(p_vals)) & 
+      is.null(sig_matrix)) {
+    stop("Either sig_matrix needs to be provided, or firstmate, secondmate, and p_vals must be")
+  }
+  
+  #TODO: add check that sig_matrix is symmetric
+  
+  #If sig_matrix is not provided, create it
+  if (is.null(sig_matrix)) {
+    firstmate <- as.factor(firstmate)
+    secondmate <- as.factor(secondmate)
+    
+    all_levels <- unique(c(as.character(levels(firstmate)),
+                           as.character(levels(secondmate))))
+    sig_matrix <- matrix(nrow = length(all_levels), 
+                         ncol = length(all_levels),
+                         FALSE)
+    for (i in 1:length(firstmate)) {
+      if (p_vals[i] < (1-conf.level)) {
+        sig_matrix[match(firstmate[i], all_levels),
+                   match(secondmate[i], all_levels)] <- TRUE
+        sig_matrix[match(secondmate[i], all_levels),
+                   match(firstmate[i], all_levels)] <- TRUE
+      }
+    }
+  }
+  
+  #Run insert and absorb
+  # Hans-Peter Piepho (2004) An Algorithm for a Letter-Based Representation of
+  # All-Pairwise Comparisons, Journal of Computational and Graphical 
+  # Statistics, 13:2, 456-466
+  
+  #Initialize letters matrix
+  letters_matrix <- matrix(nrow = nrow(sig_matrix), ncol = 1,
+                           data = TRUE)
+  
+  #Insert
+  for (i in 1:nrow(sig_matrix)) {
+    for (j in 1:ncol(sig_matrix)) {
+      #If significant and in lower triangle of matrix
+      if (sig_matrix[i, j] & lower.tri(sig_matrix)[i, j]) {
+        for (k in 1:ncol(letters_matrix)) {
+          #If both levels (which are sig dift) are included in this letter
+          if (letters_matrix[i, k] & letters_matrix[j, k]) {
+            #Duplicate the current column
+            letters_matrix <- cbind(letters_matrix, letters_matrix[, k])
+            #then remove one treatment from current column, and one from the
+            # duplicated column
+            letters_matrix[j, ncol(letters_matrix)] <- FALSE
+            letters_matrix[i, k] <- FALSE
+          }
+        }
+      }
+    }
+  }
+  
+  #Absorb
+  i <- 1
+  while (i <= ncol(letters_matrix)) { #this is the column we'll compare against
+    j <- 1
+    while (j <= ncol(letters_matrix)) {
+      if (i != j) {
+        #if column j TRUE's are a subset of column i
+        if (all((letters_matrix[, i] | letters_matrix[, j]) == letters_matrix[, i])) {
+          #get rid of column j
+          letters_matrix <- letters_matrix[, -c(j)]
+          if (j < i) {i <- i-1} #removing the column shifts our ith column too
+          j <- j-1
+        }
+      }
+      j <- j+1
+    }
+    i <- i+1
+  }
+  
+  #TODO: implement sweeping (below is non-functional)
+  #Sweep
+  # i <- ncol(letters_matrix)
+  # #i is the column we're considering whether it's redundant
+  # # (working backwards from the end)
+  # while (i > 0) {
+  #   #For each pair of rows (j, k) that are TRUE in column i, we need to verify 
+  #   # that there is another column where those two rows are also TRUE
+  #   truerows <- which(letters_matrix[, i])
+  #   redundant_pairs <- 0 #status of row i
+  #   for (j in truerows) {
+  #     for (k in truerows) {
+  #       for (m in 1:ncol(letters_matrix)) { #check if j, k both TRUE in ea col m
+  #         if (!(m != i & letters_matrix[j, m] & letters_matrix[k, m])) {
+  #           redundant <- FALSE
+  #         }
+  #       }
+  #     }
+  #   }
+  #   i <- i-1
+  # }
+  
+  output <- rep(NA, nrow(letters_matrix))
+  for (i in 1:length(output)) {
+    output[i] <- paste(letters[1:ncol(letters_matrix)][letters_matrix[i, ]], 
+                       collapse = "")
+  }
+  
+  return(output)
+}
+
 #Temperature Survival ----
 
 #Read in & format data
@@ -75,32 +220,6 @@ tempr_plot
 ggsave(filename = "temp_surv.tiff", width = 8, height = 5, units = "in")
 
 #Statistics
-
-#Define function to fix two-tailed tests into one-tailed & apply Bonferroni correction
-adjust_ttests <- function(summary_coefficients, alternative = NULL) {
-  if (!(alternative %in% c("greater", "less"))) {
-    warning("alternative has not been provided, or is not 'greater' or 'less'")
-  }
-  
-  summary_coefficients <- cbind(summary_coefficients, "One-tailed Pr" = NA)
-  #Fix p-values from two-tailed to one-tailed
-  for (i in 1:nrow(summary_coefficients)) {
-    if (alternative == "greater") { #one tailed test for higher values than expected
-      if (summary_coefficients[i, 3] < 0) { #p-values will need to be halved & flipped
-        summary_coefficients[i, 5] <- 1-(summary_coefficients[i, 4]/2)
-      } else if (summary_coefficients[i, 3] > 0) {#p-values need to be halved
-        summary_coefficients[i, 5] <- summary_coefficients[i, 4]/2
-      }
-    } else if (alternative == "less") { #one tailed test for lower values than expected
-      if (summary_coefficients[i, 3] > 0) { #p-values will need to be halved & flipped
-        summary_coefficients[i, 5] <- 1-(summary_coefficients[i, 4]/2)
-      } else if (summary_coefficients[i, 3] < 0) { #p-values need to be halved
-        summary_coefficients[i, 5] <- summary_coefficients[i, 4]/2
-      }
-    } else {} #remain a two-tailed test
-  }
-  return(summary_coefficients)
-}
 
 #Take subset of data that has 3+ measures above limit of detection
 #in treatment
@@ -183,14 +302,14 @@ summary(temprdur_model)
 
 #Growth curve analysis ----
 
-data1 <- read.csv("Data-Plate Reader-190817.csv", stringsAsFactors = F)
-layout1 <- read.csv("Data-Plate Reader-190817_layout.csv", stringsAsFactors = F)
-data2 <- read.csv("Data-Plate Reader-150817.csv", stringsAsFactors = F)
-layout2 <- read.csv("Data-Plate Reader-150817_layout.csv", stringsAsFactors = F)
-data3 <- read.csv("2018-10-12 Growth Curve.csv", stringsAsFactors = F)
-layout3 <- read.csv("2018-10-9 Plate Layout.csv", stringsAsFactors = F)
+gc_data1 <- read.csv("Data-Plate Reader-190817.csv", stringsAsFactors = F)
+gc_layout1 <- read.csv("Data-Plate Reader-190817_layout.csv", stringsAsFactors = F)
+gc_data2 <- read.csv("Data-Plate Reader-150817.csv", stringsAsFactors = F)
+gc_layout2 <- read.csv("Data-Plate Reader-150817_layout.csv", stringsAsFactors = F)
+gc_data3 <- read.csv("2018-10-12 Growth Curve.csv", stringsAsFactors = F)
+gc_layout3 <- read.csv("2018-10-9 Plate Layout.csv", stringsAsFactors = F)
 
-layout3[layout3=="LB"] <- NA
+gc_layout3[gc_layout3=="LB"] <- NA
 
 #Clean up layout
 layout_cleanup <- function(layout) {
@@ -228,9 +347,9 @@ layout_cleanup <- function(layout) {
   return(layout)
 }
 
-cln_lay1 <- layout_cleanup(layout1)
-cln_lay2 <- layout_cleanup(layout2)
-cln_lay3 <- layout_cleanup(layout3)
+gc_layout1 <- layout_cleanup(gc_layout1)
+gc_layout2 <- layout_cleanup(gc_layout2)
+gc_layout3 <- layout_cleanup(gc_layout3)
 
 #Merge layout & data
 merge_lay_data <- function(layout, data) {
@@ -257,9 +376,9 @@ clean_mdata <- function(mdata) {
   return(mdata)
 }
 
-mdata1 <- clean_mdata(merge_lay_data(cln_lay1, data1))
-mdata2 <- clean_mdata(merge_lay_data(cln_lay2, data2))
-mdata3 <- clean_mdata(merge_lay_data(cln_lay3, data3))
+gc_data1 <- clean_mdata(merge_lay_data(gc_layout1, gc_data1))
+gc_data2 <- clean_mdata(merge_lay_data(gc_layout2, gc_data2))
+gc_data3 <- clean_mdata(merge_lay_data(gc_layout3, gc_data3))
 
 #Split contents up
 split_contents <- function(input_frame) {
@@ -271,9 +390,9 @@ split_contents <- function(input_frame) {
   return(subset(input_frame, select=-c(format)))
 }
 
-spl_data1 <- split_contents(mdata1)
-spl_data2 <- split_contents(mdata2)
-spl_data3 <- split_contents(mdata3)
+gc_data1 <- split_contents(gc_data1)
+gc_data2 <- split_contents(gc_data2)
+gc_data3 <- split_contents(gc_data3)
 
 #smooth OD data
 smooth_data <- function(my_data, smooth_over, subset_by) {
@@ -297,12 +416,12 @@ smooth_data <- function(my_data, smooth_over, subset_by) {
   return(out_list)
 }
 
-spl_data1$sm_od <- smooth_data(spl_data1$OD600, smooth_over = 10,
-                               subset_by = spl_data1$Contents)
-spl_data2$sm_od <- smooth_data(spl_data2$OD600, smooth_over = 10,
-                               subset_by = spl_data2$Contents)
-spl_data3$sm_od <- smooth_data(spl_data3$OD600, smooth_over = 10,
-                               subset_by = spl_data3$Contents)
+gc_data1$sm_od <- smooth_data(gc_data1$OD600, smooth_over = 10,
+                               subset_by = gc_data1$Contents)
+gc_data2$sm_od <- smooth_data(gc_data2$OD600, smooth_over = 10,
+                               subset_by = gc_data2$Contents)
+gc_data3$sm_od <- smooth_data(gc_data3$OD600, smooth_over = 10,
+                               subset_by = gc_data3$Contents)
 
 #extraction function: to get OD peak height and time
 analyze_curves <- function(od_data, time_data, bandwidth = 10, return) {
@@ -324,30 +443,31 @@ analyze_curves <- function(od_data, time_data, bandwidth = 10, return) {
 }
 
 #Group data by indiv growth curves
-grp_data1 <- dplyr::group_by(spl_data1[!is.na(spl_data1$sm_od), ], 
+gc_data1 <- dplyr::group_by(gc_data1[!is.na(gc_data1$sm_od), ], 
                      bacteria, phage, phageshock, bactshock, mediashock, Rep, Contents)
-grp_data2 <- dplyr::group_by(spl_data2[!is.na(spl_data2$sm_od), ],
+gc_data2 <- dplyr::group_by(gc_data2[!is.na(gc_data2$sm_od), ],
                              pctmediashocked, bacteria, phage, phageshock, Rep, Contents)
-grp_data3 <- dplyr::group_by(spl_data3[!is.na(spl_data3$sm_od), ],
+gc_data3 <- dplyr::group_by(gc_data3[!is.na(gc_data3$sm_od), ],
                              bact, phage, totalpfuinoc, Rep, Contents)
                              
 #Get OD peak height & time for each growth curve
-out_data1 <- dplyr::summarize(grp_data1, 
+out_data1 <- dplyr::summarize(gc_data1, 
                               max = analyze_curves(sm_od, Time, bandwidth = 20, 
                                                    return = "max"),
                               maxtime = analyze_curves(sm_od, Time, bandwidth = 20, 
                                                        return = "maxtime"))
-out_data2 <- dplyr::summarize(grp_data2, 
+out_data2 <- dplyr::summarize(gc_data2, 
                               max = analyze_curves(sm_od, Time, 
                                                    bandwidth = 20, return = "max"),
                               maxtime = analyze_curves(sm_od, Time, 
                                                        bandwidth = 20, return = "maxtime"))
-out_data3 <- dplyr::summarize(grp_data3, 
+out_data3 <- dplyr::summarize(gc_data3, 
                               max = analyze_curves(sm_od, Time, 
                                                    bandwidth = 20, return = "max"),
                               maxtime = analyze_curves(sm_od, Time, 
                                                        bandwidth = 20, return = "maxtime"))
 
+#Add other information for gc1 ----
 #Add information about quantity of pfu inoculated to out_data1
 out_data1$pfu_inoc <- 200
 out_data1$pfu_inoc[(out_data1$phage == "S3" | out_data1$phage == "S8") &
@@ -357,20 +477,59 @@ out_data1$pfu_inoc[(out_data1$phage == "S11" | out_data1$phage == "S16") &
 out_data1$pfu_inoc[out_data1$phage == "R3" & out_data1$phageshock == 360] <- 50
 out_data1$pfu_inoc[out_data1$phage == "NA"] <- 0
 
-#Growth Curve Figures ----
+#For gc1 add the treatment names
+out_data1$plot <- NA
+for (i in 1:nrow(out_data1)) {
+  if (!out_data1$phage[i] == "NA") {
+    out_data1$plot[i] <- out_data1$phageshock[i]
+  } else {
+    if (out_data1$bacteria[i]=="NA") {out_data1$plot[i] <- "- Ctrl"
+    } else {
+      if (out_data1$mediashock[i] == 1) {
+        out_data1$plot[i] <- "+ Ctrl Shock"
+      } else {out_data1$plot[i] <- "+ Ctrl"}
+    }
+  }
+}
 
-#Plots to visually inspect peak designation accuracy
+#Rename Phage Stocks
+mynames <- c("A" = "R3", "B" = "S3", "C" = "S8", "D" = "S11", "E" = "S16")
+out_data1$phage <- names(mynames)[match(out_data1$phage, mynames)]
+
+#Summarize replicate wells ----
+out_data1$pfu_inoc <- as.numeric(as.character(out_data1$pfu_inoc))
+out_data1 <- group_by(out_data1, plot, phage)
+sum_data1 <- summarize(out_data1,
+                       pfu_inoc = mean(pfu_inoc),
+                       maxpeak_mean = mean(max),
+                       maxpeak_se = sd(max)/n())
+
+#Exploratory analysis ----
+
+#Make plot with all data
+out_data1$plot <- factor(out_data1$plot,
+                        levels = c("+ Ctrl", "+ Ctrl Shock", 0, 5, 90, 180,
+                                   270, 360, "- Ctrl"))
+ggplot(data = out_data1, aes(x = plot, y = max, group = phage, color = phage)) +
+  geom_point(size = 2, position = position_dodge(0.6)) +
+  ylab("Max Bacterial Density (OD600)") + xlab("Duration of Heatshock (min)") +
+  scale_colour_discrete(name="Phage Replicate") +
+  theme_bw() + scale_y_continuous(limits = c(0, NA))
+
+#There's something weird going on with 180 C (S8) & D (S11)
+
+#Look at all wells and check peak designation accuracy
 view_peaks <- function(data_mlt, data_out, plt_point = TRUE,
                        numplots = 9, lwd = 1) {
   for (start_group in seq(from = 1, to = length(unique(data_mlt$Contents)), by = numplots)) {
     my_groups <- unique(data_mlt$Contents)[start_group:(start_group+numplots-1)]
     myplot <- ggplot(data = data_mlt[data_mlt$Contents %in% my_groups, ],
-                 aes(x = Time, y = sm_od)) + geom_line(lwd = lwd) +
-            facet_wrap(~Contents) + ylab("Smoothed OD600")
+                     aes(x = Time, y = sm_od)) + geom_line(lwd = lwd) +
+      facet_wrap(~Contents) + ylab("Smoothed OD600")
     if (plt_point) {myplot <- myplot + 
-                              geom_point(data = data_out[data_out$Contents %in% my_groups, ],
-                                                  aes(x = maxtime, y = max),
-                                                  size = 3, pch = 13)
+      geom_point(data = data_out[data_out$Contents %in% my_groups, ],
+                 aes(x = maxtime, y = max),
+                 size = 3, pch = 13)
     }
     print(myplot)
     # ggsave(filename = paste(start_group, "_growcurves.pdf", sep = ""),
@@ -378,50 +537,115 @@ view_peaks <- function(data_mlt, data_out, plt_point = TRUE,
   }
 }
 
-#view_peaks(grp_data1, out_data1)
-#view_peaks(grp_data2, out_data2)
-#view_peaks(grp_data3, out_data3)
-#view_peaks(grp_data3, out_data3, plt_point = F, numplots = 1, lwd = 2)
+#view_peaks(gc_data1, out_data1)
+#view_peaks(gc_data2, out_data2)
+#view_peaks(gc_data3, out_data3)
 
-#Plots to look at summarized data
+#There appear to be no bacteria in 180 D (S11) at all (all 3 reps)
+#And there also appear to be no bacteria in 180 C (S8) replicate C
 
-#GC Plot 1 ####
-#Create "plot" column for x axis
-plot1 <- out_data1
-plot1$plot <- NA
-for (i in 1:nrow(plot1)) {
-  if (!plot1$phage[i] == "NA") {
-    plot1$plot[i] <- plot1$phageshock[i]
-  } else {
-    if (plot1$bacteria[i]=="NA") {plot1$plot[i] <- "- Ctrl"
-    } else {
-      if (plot1$mediashock[i] == 1) {
-        plot1$plot[i] <- "+ Ctrl Shock"
-      } else {plot1$plot[i] <- "+ Ctrl"}
-    }
-  }
-}
+#Exclude data points which were not inoculated with bacteria
+out_data1 <- out_data1[-which(out_data1$max < 0.1 & out_data1$plot != "- Ctrl"), ]
 
-#Reformat columns
-plot1$phageshock <- factor(plot1$phageshock,
-                           levels = c("NA", 0, 5, 90, 180, 270, 360))
-plot1$plot <- factor(plot1$plot,
-                        levels = c("+ Ctrl", "+ Ctrl Shock",
-                                   "0", "5", "90", "180", "270",
-                                   "360", "- Ctrl"))
-plot1 <- plot1[-which(plot1$max < 0.1 & plot1$plot != "- Ctrl"), ]
-#Rename Phage Stocks
-mynames <- c("A" = "R3", "B" = "S3", "C" = "S8", "D" = "S11", "E" = "S16")
-plot1$phage <- names(mynames)[match(plot1$phage, mynames)]
+#Re-summarize
+sum_data1 <- summarize(out_data1,
+                       pfu_inoc = mean(pfu_inoc),
+                       maxpeak_mean = mean(max),
+                       maxpeak_se = sd(max)/n())
 
-#Make plot
-# #with all data
-# ggplot(data = plot1, aes(x = plot, y = max, group = phage, color = phage)) +
-#   geom_point(size = 2, position = position_dodge(0.6)) +
-#   ylab("Max Bacterial Density (OD600)") + xlab("Duration of Heatshock (min)") +
-#   scale_colour_discrete(name="Phage Replicate") +
-#   theme_bw() + scale_y_continuous(limits = c(0, NA))
-# #ggsave(filename = "gc_maxes.tiff", width = 8, height = 5, units = "in")
+##Statistics ----
+
+#ANOVA (with stocks unsummarized)
+gc1_stats <- out_data1[out_data1$plot %in% 
+                     c("+ Ctrl", "+ Ctrl Shock", 0, 5, 90, 180,270, 360) &
+                     out_data1$pfu_inoc %in% c(0, 200), ]
+gc1_stats$pfu_inoc <- relevel(as.factor(gc1_stats$pfu_inoc), ref = "200")
+gc1_stats$plot <- relevel(as.factor(gc1_stats$plot), ref = "0")
+gc1_stats$phage[is.na(gc1_stats$phage)] <- "None"
+curve1_model <- lm(max~plot + phage + phage:plot,
+                   data = gc1_stats)
+anova(curve1_model)
+#summary(curve1_model)
+
+#Contrasts of interest:
+# Each of the phage stocks at 0 w/ +Ctrl and +Shock (10x)
+# 0, 5, 90, 180, 270 - all pairwise among each other (10x), using summarized
+#   stocks values
+
+#Each phage stock at 0 w/ +Ctrl and +Shock
+# with +Ctrl
+gc1_stats$plot <- relevel(gc1_stats$plot, "+ Ctrl")
+curve1_model_ctrl <- lm(max ~ phage:plot,
+                        data = gc1_stats)
+curve1_model_ctrl_coefs <- summary(curve1_model_ctrl)$coefficients
+curve1_model_ctrl_coefs <- curve1_model_ctrl_coefs[
+  row.names(curve1_model_ctrl_coefs) %in%
+    c("phageA:plot0", "phageB:plot0", "phageC:plot0", 
+      "phageD:plot0", "phageE:plot0"), ]
+
+#Adjust t-tests to be one-tailed
+curve1_model_ctrl_coefs <- adjust_ttests(curve1_model_ctrl_coefs, 
+                                         alternative = "less")
+
+#Add corrected p-values
+curve1_model_ctrl_coefs <- cbind(curve1_model_ctrl_coefs, 
+                                 "Adj p" = p.adjust(curve1_model_ctrl_coefs[, "One-tailed Pr"], 
+                                                    method = "bonferroni"))
+curve1_model_ctrl_coefs
+
+# with +Shock
+gc1_stats$plot <- relevel(gc1_stats$plot, "+ Ctrl Shock")
+curve1_model_shock <- lm(max ~ phage:plot,
+                         data = gc1_stats)
+curve1_model_shock_coefs <- summary(curve1_model_shock)$coefficients
+curve1_model_shock_coefs <- curve1_model_shock_coefs[
+  row.names(curve1_model_shock_coefs) %in%
+    c("phageA:plot0", "phageB:plot0", "phageC:plot0", 
+      "phageD:plot0", "phageE:plot0"), ]
+
+#Adjust t-tests to be one-tailed
+curve1_model_shock_coefs <- adjust_ttests(curve1_model_shock_coefs, 
+                                          alternative = "less")
+
+#Add corrected p-values
+curve1_model_shock_coefs <- cbind(curve1_model_shock_coefs, 
+                                  "Adj p" = p.adjust(curve1_model_shock_coefs[, "One-tailed Pr"], 
+                                                     method = "bonferroni"))
+curve1_model_shock_coefs
+
+
+#All pairs among 0, 5, 90, 180, 270
+gc1_stats_heatsonly <- sum_data1[sum_data1$plot %in% c(0, 5, 90, 180, 270) &
+                               sum_data1$pfu_inoc %in% c(0, 200), ]
+curve1_model_heatshocks <- aov(maxpeak_mean~plot,
+                               data = gc1_stats_heatsonly)
+#just a check before Tukey that treatment is still sig w/ only a subset of the data
+summary(curve1_model_heatshocks)
+
+#Run Tukey test of all pairs
+gc_heat_tukey <- TukeyHSD(curve1_model_heatshocks,
+                          which = "plot")
+gc_heat_tukey
+
+#Get the treatment pairs & p-values to assign letters for plotting
+my_split <- unlist(strsplit(rownames(gc_heat_tukey$plot), "-"))
+treat1 <- factor(my_split[seq(from = 1, to = length(my_split), by = 2)],
+                 levels = c("0", "5", "90", "180", "270"))
+treat2 <- factor(my_split[seq(from = 2, to = length(my_split), by = 2)],
+                 levels = c("0", "5", "90", "180", "270"))
+
+#Get letters for plotting
+gc1_groups <- make_cld(firstmate = treat1, secondmate = treat2, 
+                      p_vals = gc_heat_tukey$plot[, 4])
+
+make_cld(
+
+#Growth Curve Publication Figures ----
+
+#GC1 Plots ####
+
+
+#Make plot with summarized data
 
 #With summarized data
 plot1$pfu_inoc <- as.numeric(as.character(plot1$pfu_inoc))
@@ -482,81 +706,6 @@ gc_plot1_alldata <- ggplot(data = plot1_sum_temp,
          shape = guide_legend(order = 2))
 gc_plot1_alldata
 ggsave(filename = "gc_maxes_alldata.tiff", width = 8, height = 5, units = "in")
-
-##Statistics
-
-#ANOVA with replicate wells left in
-gc1_stats <- plot1[plot1$plot %in% 
-                     c("+ Ctrl", "+ Ctrl Shock", 0, 5, 90, 180,270, 360) &
-                     plot1$pfu_inoc %in% c(0, 200), ]
-gc1_stats$pfu_inoc <- relevel(as.factor(gc1_stats$pfu_inoc), ref = "200")
-gc1_stats$plot <- relevel(as.factor(gc1_stats$plot), ref = "0")
-gc1_stats$phage[is.na(gc1_stats$phage)] <- "None"
-curve1_model <- lm(max~plot + phage + phage:plot,
-                   data = gc1_stats)
-anova(curve1_model)
-summary(curve1_model)
-
-#Contrasts of interest:
-# 0, 5, 90, 180, 270 - all pairwise among each other (10x), using summarized
-#   stocks values
-# Each of the phage stocks at 0 w/ +Ctrl and +Shock (10x)
-
-#All pairs among 0, 5, 90, 180, 270
-gc1_stats_heatsonly <- plot1[plot1$plot %in% c(0, 5, 90, 180,270, 360) &
-                               plot1$pfu_inoc %in% c(0, 200), ]
-curve1_model_heatshocks <- aov(max~plot + phage + phage:plot,
-                               data = gc1_stats_heatsonly)
-summary(curve1_model_heatshocks)
-
-gc_heat_tukey <- TukeyHSD(curve1_model_heatshocks,
-                          which = "plot")
-gc_heat_tukey
-
-#Each phage stock at 0 w/ +Ctrl and +Shock
-gc1_stats$plot <- relevel(gc1_stats$plot, "+ Ctrl")
-curve1_model_ctrl <- lm(max ~ phage:plot,
-                    data = gc1_stats)
-summary(curve1_model_ctrl)
-
-gc1_stats$plot <- relevel(gc1_stats$plot, "+ Ctrl Shock")
-curve1_model_shock <- lm(max ~ phage:plot,
-                         data = gc1_stats)
-summary(curve1_model_shock)
-
-
-#We are running 7!/5!*2! = 21 paired t-tests
-#Therefore Bonferroni correction alpha = 0.05/21 = 0.00238
-posthoc_stats <- function(data, variable, pairs_mtrx = NULL) {
-  #data should be a dataframe
-  #variable should be the name of the column to be evaluated
-  #if pairs_mtrx is not supplied, will run all pairwise comparisons
-  #  if pairs_mtrx is supplied, rows & columns match with the levels of
-  #  data$variable, and should be Boolean values indicating whether
-  #  a comparison should be run
-  
-  if (!is.null(pairs_mtrx) & class(data[variable]) != "factor") {
-    stop("pairs_mtrx is provided but data$variable is not a factor")
-  } else if (class(data[variable]) != "factor") {
-    data[variable] <- as.factor(data[variable])
-  }
-  
-  var_levels <- levels(data[variable])
-  
-  
-  
-  output <- data.frame(eval(variable) = var_levels,
-                       "groups" = c())
-  return(output)
-}
-
-# curve1_aovmodel <- aov(max~plot + phage + phage:plot,
-#                        data = plot1[plot1$plot %in%
-#                                       c("+ Ctrl", "+ Ctrl Shock", 0, 5, 90, 180,
-#                                         270, 360) &
-#                                       plot1$pfu_inoc %in% c(0, 200),])
-# summary(curve1_aovmodel) #to check that it's the same numbers
-# TukeyHSD(curve1_aovmodel, "plot")
 
 #Combined Temperature Figure ####
 
