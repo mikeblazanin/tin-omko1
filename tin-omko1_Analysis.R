@@ -1,4 +1,5 @@
 library(ggplot2)
+library(ggsignif)
 library(dplyr)
 
 ###Needed general functions:
@@ -574,44 +575,34 @@ anova(curve1_model)
 
 #Each phage stock at 0 w/ +Ctrl and +Shock
 # with +Ctrl
-gc1_stats$plot <- relevel(gc1_stats$plot, "+ Ctrl")
-curve1_model_ctrl <- lm(max ~ phage:plot,
-                        data = gc1_stats)
-curve1_model_ctrl_coefs <- summary(curve1_model_ctrl)$coefficients
-curve1_model_ctrl_coefs <- curve1_model_ctrl_coefs[
-  row.names(curve1_model_ctrl_coefs) %in%
-    c("phageA:plot0", "phageB:plot0", "phageC:plot0", 
-      "phageD:plot0", "phageE:plot0"), ]
-
-#Adjust t-tests to be one-tailed
-curve1_model_ctrl_coefs <- adjust_ttests(curve1_model_ctrl_coefs, 
-                                         alternative = "less")
-
-#Add corrected p-values
-curve1_model_ctrl_coefs <- cbind(curve1_model_ctrl_coefs, 
-                                 "Adj p" = p.adjust(curve1_model_ctrl_coefs[, "One-tailed Pr"], 
-                                                    method = "bonferroni"))
-curve1_model_ctrl_coefs
-
-# with +Shock
-gc1_stats$plot <- relevel(gc1_stats$plot, "+ Ctrl Shock")
-curve1_model_shock <- lm(max ~ phage:plot,
-                         data = gc1_stats)
-curve1_model_shock_coefs <- summary(curve1_model_shock)$coefficients
-curve1_model_shock_coefs <- curve1_model_shock_coefs[
-  row.names(curve1_model_shock_coefs) %in%
-    c("phageA:plot0", "phageB:plot0", "phageC:plot0", 
-      "phageD:plot0", "phageE:plot0"), ]
-
-#Adjust t-tests to be one-tailed
-curve1_model_shock_coefs <- adjust_ttests(curve1_model_shock_coefs, 
-                                          alternative = "less")
+curve1_coefs <- data.frame("Estimate" = vector(length = 10),
+                                "Std.error" = vector(length = 10),
+                                "df" = vector(length = 10),
+                                "tvalue" = vector(length = 10),
+                                "One.tailed.Pr" = vector(length = 10))
+i <- 1
+for (group1 in c("+ Ctrl", "+ Ctrl Shock")) {
+  for (group2 in c("A", "B", "C", "D", "E")) {
+    temp <- t.test(gc1_stats$max[gc1_stats$plot == group1],
+                   gc1_stats$max[gc1_stats$plot == 0 & gc1_stats$phage == group2],
+                   alternative = "two.sided")
+    curve1_coefs[i, ] <- data.frame("Estimate" = temp$estimate[1] - temp$estimate[2],
+                                    "Std.error" = temp$stderr,
+                                    "df" = temp$parameter,
+                                    "t.value" = temp$statistic,
+                                    "One.tailed.Pr" = temp$p.value)
+    rownames(curve1_coefs)[i] <- paste(group1, group2, sep = "-")
+    i <- i+1
+  }
+}
 
 #Add corrected p-values
-curve1_model_shock_coefs <- cbind(curve1_model_shock_coefs, 
-                                  "Adj p" = p.adjust(curve1_model_shock_coefs[, "One-tailed Pr"], 
-                                                     method = "bonferroni"))
-curve1_model_shock_coefs
+curve1_coefs <- cbind(curve1_coefs, 
+                      "Adj p" = c(p.adjust(curve1_coefs[1:5, "One.tailed.Pr"], 
+                                           method = "bonferroni"),
+                                  p.adjust(curve1_coefs[6:10, "One.tailed.Pr"],
+                                           method = "bonferroni")))
+curve1_coefs
 
 
 #All pairs among 0, 5, 90, 180, 270
@@ -635,44 +626,56 @@ treat2 <- factor(my_split[seq(from = 2, to = length(my_split), by = 2)],
                  levels = c("0", "5", "90", "180", "270"))
 
 #Get letters for plotting
-gc1_groups <- make_cld(firstmate = treat1, secondmate = treat2, 
-                      p_vals = gc_heat_tukey$plot[, 4])
-
-make_cld(
+gc1_groups <- data.frame(plot = levels(treat1),
+                         height = NA,
+                         statgroup = make_cld(firstmate = treat1, 
+                                              secondmate = treat2, 
+                                              p_vals = gc_heat_tukey$plot[, 4]))
+for (i in 1:nrow(gc1_groups)) {
+  gc1_groups$height[i] <- max(sum_data1$maxpeak_mean[
+    as.character(sum_data1$plot) == as.character(gc1_groups$plot[i])])
+}
 
 #Growth Curve Publication Figures ----
 
-#GC1 Plots ####
-
-
 #Make plot with summarized data
-
-#With summarized data
-plot1$pfu_inoc <- as.numeric(as.character(plot1$pfu_inoc))
-plot1 <- group_by(plot1, plot, phage)
-plot1_sum <- summarize(plot1,
-                       pfu_inoc = mean(pfu_inoc),
-                       maxpeak_mean = mean(max),
-                       maxpeak_se = sd(max)/n())
-
-plot1_sum$pfu_inoc <- as.factor(plot1_sum$pfu_inoc)                       
-gc_plot1 <- ggplot(data = plot1_sum[plot1_sum$plot != "- Ctrl" &
-                                      plot1_sum$pfu_inoc %in% c(0, 200),], 
-                   aes(x = plot, y = maxpeak_mean, color = phage)) +
-  geom_point(position = position_dodge(width = .4), size = 3) +
+plot1 <- sum_data1
+plot1$pfu_inoc <- as.factor(plot1$pfu_inoc)                       
+gc_plot1 <- ggplot(data = plot1[plot1$plot != "- Ctrl" &
+                                      plot1$pfu_inoc %in% c(0, 200),], 
+                   aes(x = plot, y = maxpeak_mean)) +
+  geom_point(position = position_dodge(width = .4), size = 3,
+             aes(color = phage)) +
   geom_errorbar(position = position_dodge(width = .4),
                 aes(ymax = maxpeak_mean + 1.96*maxpeak_se,
-                    ymin = maxpeak_mean - 1.96*maxpeak_se),
+                    ymin = maxpeak_mean - 1.96*maxpeak_se,
+                    color = phage),
                 width = .7) +
   theme_bw()  +
+  ylim(NA, 1.67) +
   labs(x = "70°C Heat Shock Duration (min)", y = "Peak Bacterial Density (OD600)") +
   scale_color_discrete(name = "Phage Stock") +
-  geom_hline(yintercept = plot1_sum$maxpeak_mean[plot1_sum$plot == "- Ctrl"],
+  geom_hline(yintercept = plot1$maxpeak_mean[plot1$plot == "- Ctrl"],
              lty = 3, lwd = 1.15) +
   scale_x_discrete(labels = c("+ Ctrl", "+ Ctrl\nShock", "0", "5", 
                               "90", "180", "270")) +
-  theme(panel.grid = element_blank())
-  #  theme(axis.text.x = element_text(angle = 30, size = 12, hjust = 1))
+  theme(panel.grid = element_blank()) +
+  #  theme(axis.text.x = element_text(angle = 30, size = 12, hjust = 1)) +
+  geom_text(data = gc1_groups,
+            aes(x = plot, y = height + 0.1, label = statgroup)) +
+  geom_signif(comparisons = list(c("+ Ctrl", "0")),
+              tip_length = 0.01, y_position = 1.65,
+              annotation = ifelse(max(curve1_coefs[1:5, "Adj p"]) < 0.001,
+                                  "p<0.001",
+                                  paste("p<", max(curve1_coefs[1:5, "Adj p"]),
+                                        sep = ""))) +
+  geom_signif(comparisons = list(c("+ Ctrl Shock", "0")),
+              tip_length = 0.01, y_position = 1.5,
+              annotation = ifelse(max(curve1_coefs[1:5, "Adj p"]) < 0.001,
+                                  "p<0.001",
+                                  paste("p<", max(curve1_coefs[1:5, "Adj p"]),
+                                        sep = ""))) +
+  NULL
 gc_plot1
 ggsave(filename = "gc_maxes.tiff", width = 8, height = 5, units = "in")
 
