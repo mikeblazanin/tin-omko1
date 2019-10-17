@@ -570,6 +570,7 @@ anova(curve1_model)
 
 #Contrasts of interest:
 # Each of the phage stocks at 0 w/ +Ctrl and +Shock (10x)
+# +Ctrl with +Shock
 # 0, 5, 90, 180, 270 - all pairwise among each other (10x), using summarized
 #   stocks values
 
@@ -583,9 +584,9 @@ curve1_coefs <- data.frame("Estimate" = vector(length = 10),
 i <- 1
 for (group1 in c("+ Ctrl", "+ Ctrl Shock")) {
   for (group2 in c("A", "B", "C", "D", "E")) {
-    temp <- t.test(gc1_stats$max[gc1_stats$plot == group1],
-                   gc1_stats$max[gc1_stats$plot == 0 & gc1_stats$phage == group2],
-                   alternative = "two.sided")
+    temp <- t.test(gc1_stats$max[gc1_stats$plot == 0 & gc1_stats$phage == group2],
+                   gc1_stats$max[gc1_stats$plot == group1],
+                   alternative = "less")
     curve1_coefs[i, ] <- data.frame("Estimate" = temp$estimate[1] - temp$estimate[2],
                                     "Std.error" = temp$stderr,
                                     "df" = temp$parameter,
@@ -598,12 +599,17 @@ for (group1 in c("+ Ctrl", "+ Ctrl Shock")) {
 
 #Add corrected p-values
 curve1_coefs <- cbind(curve1_coefs, 
-                      "Adj p" = c(p.adjust(curve1_coefs[1:5, "One.tailed.Pr"], 
-                                           method = "bonferroni"),
-                                  p.adjust(curve1_coefs[6:10, "One.tailed.Pr"],
-                                           method = "bonferroni")))
-curve1_coefs
+                      "Adj p" = p.adjust(curve1_coefs[, "One.tailed.Pr"], 
+                                           method = "bonferroni"))
+print(round(curve1_coefs$Estimate, 2))
+print(round(curve1_coefs$df, 2))
+print(round(curve1_coefs$tvalue, 2))
+print(round(curve1_coefs$`Adj p`, 4))
 
+#+Ctrl with +Shock
+t.test(gc1_stats$max[gc1_stats$plot == "+ Ctrl Shock"],
+       gc1_stats$max[gc1_stats$plot == "+ Ctrl"],
+       alternative = "two.sided")
 
 #All pairs among 0, 5, 90, 180, 270
 gc1_stats_heatsonly <- sum_data1[sum_data1$plot %in% c(0, 5, 90, 180, 270) &
@@ -652,7 +658,7 @@ gc_plot1 <- ggplot(data = plot1[plot1$plot != "- Ctrl" &
                     color = phage),
                 width = .7) +
   theme_bw()  +
-  ylim(NA, 1.67) +
+  ylim(NA, 1.85) +
   labs(x = "70°C Heat Shock Duration (min)", y = "Peak Bacterial Density (OD600)") +
   scale_color_discrete(name = "Phage Stock") +
   geom_hline(yintercept = plot1$maxpeak_mean[plot1$plot == "- Ctrl"],
@@ -662,9 +668,9 @@ gc_plot1 <- ggplot(data = plot1[plot1$plot != "- Ctrl" &
   theme(panel.grid = element_blank()) +
   #  theme(axis.text.x = element_text(angle = 30, size = 12, hjust = 1)) +
   geom_text(data = gc1_groups,
-            aes(x = plot, y = height + 0.1, label = statgroup)) +
+            aes(x = plot, y = height + 0.3, label = statgroup)) +
   geom_signif(comparisons = list(c("+ Ctrl", "0")),
-              tip_length = 0.01, y_position = 1.65,
+              tip_length = 0.01, y_position = 1.7,
               annotation = ifelse(max(curve1_coefs[1:5, "Adj p"]) < 0.001,
                                   "p<0.001",
                                   paste("p<", max(curve1_coefs[1:5, "Adj p"]),
