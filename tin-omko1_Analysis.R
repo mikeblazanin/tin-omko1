@@ -804,28 +804,55 @@ saline_summary <- dplyr::summarize(group_by(saline_data, Saline.Concentration..M
 # ggsave(filename = "saline_byconc.tiff", width = 8, height = 5, units = "in")
 
 #Plot summarized data, Duration on x
-my_cols <- colorRampPalette(c("gray", "Navy"))
+# my_cols <- colorRampPalette(c("light gray", "black"))
+my_cols <- function(n) {hcl.colors(n, palette = "lajolla")}
+
 ggplot(data = saline_summary, aes(x = Duration.of.shock..m., 
                                   y = mean_pct_surv,
-                                  color = Saline.Concentration..M., 
                                   group = Saline.Concentration..M.)) +
-  geom_point(size = 3) + geom_line(lwd = 1.5) +
+  geom_point(size = 3.5, pch = 21, aes(fill = Saline.Concentration..M.)) + 
+  geom_line(lwd = 1.5, aes(color = Saline.Concentration..M.)) +
   theme_bw() +
   theme(panel.grid = element_blank(),
         axis.title = element_text(size = 18),
         axis.text = element_text(size = 16)) +
-  labs(x = "Duration of Shock (min)", 
-       y = "Percent Survival (%)") +
+  labs(x = "Duration of Salt Shock (min)", 
+       y = "Percent Phage Survivors (%)") +
   scale_color_manual(name = "Saline\nConcentration (M)",
                        values = my_cols(8)) +
+  scale_fill_manual(name = "Saline\nConcentration (M)",
+                    values = my_cols(8)) +
   scale_y_continuous(breaks = c(100, 10, 1),
                      labels = c("100", "10", "1"),
                      trans="log10") +
   scale_x_continuous(limits = c(0, 90),
                      breaks = c(0, 30, 60, 90)) +
   geom_hline(yintercept = 100, lty = 2, lwd = 1.15) +
-  geom_hline(yintercept = saline_limit_detection, lty = 3, lwd = 1.15)
+ geom_hline(yintercept = saline_limit_detection, lty = 3, lwd = 1.15) +
+  NULL
 ggsave(filename = "saline_bydur.tiff", width = 8, height = 5, units = "in")
+
+ggplot(data = saline_summary, aes(x = Duration.of.shock..m., 
+                                  y = mean_pct_surv,
+                                  group = Saline.Concentration..M.)) +
+  geom_point(size = 3.5, pch = 21, aes(fill = Saline.Concentration..M.)) + 
+  geom_line(lwd = 1.5, aes(color = Saline.Concentration..M.)) +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        axis.title = element_text(size = 18),
+        axis.text = element_text(size = 16)) +
+  labs(x = "Duration of Salt Shock (min)", 
+       y = "Percent Phage Survivors (%)") +
+  scale_color_manual(name = "Saline\nConcentration (M)",
+                     values = my_cols(8)) +
+  scale_fill_manual(name = "Saline\nConcentration (M)",
+                    values = my_cols(8)) +
+  #  guides(fill = guide_legend(override.aes = list(size=2))) +
+  scale_x_continuous(limits = c(0, 90),
+                     breaks = c(0, 30, 60, 90)) +
+  geom_hline(yintercept = 100, lty = 2, lwd = 1.15) +
+  NULL
+ggsave(filename = "saline_bydur_nolimit.tiff", width = 8, height = 5, units = "in")
 
 #Statistics
 saline_summary$Duration.of.shock..m. <- as.numeric(as.character(
@@ -851,15 +878,20 @@ urea_data$pct_surv <- 100*urea_data$Plate.count/mean(
 urea_limit_detection <- 100*1/mean(urea_data$Plate.count[
   urea_data$Urea.concentration..M. == 0 &
     urea_data$Duration.of.shock..m. == 0])
+#Flag values bd
+urea_data$bd <- FALSE
+urea_data$bd[urea_data$Plate.count < 1] <- TRUE
 #Summarize
+#Here we're making any point which has any of the 3 titers below detection
+# as below detection itself
 urea_summary <- dplyr::summarize(group_by(urea_data, Urea.concentration..M.,
                                           Duration.of.shock..m.),
-                                 mean_pct_surv = mean(pct_surv))
+                                 mean_pct_surv = mean(pct_surv),
+                                 bd = any(bd))
 
 #Flag & adjust values below limit of detection
-urea_summary$bd <- urea_summary$mean_pct_surv < urea_limit_detection
-urea_summary$mean_pct_surv[urea_summary$mean_pct_surv < urea_limit_detection] <- 
-  urea_limit_detection
+# urea_summary$bd <- urea_summary$mean_pct_surv < urea_limit_detection
+urea_summary$mean_pct_surv[which(urea_summary$bd)] <- urea_limit_detection
 
 #Make variables for plotting
 urea_summary$mean_pct_surv_lines <- urea_summary$mean_pct_surv #this is to plot the lines
@@ -885,27 +917,36 @@ for (conc in urea_summary$Urea.concentration..M.) {
 urea_summary$ptshape <- as.factor(urea_summary$ptshape)
 
 #Plot summarized data, duration on X
-ggplot(data = urea_summary, aes(x = Duration.of.shock..m.,
-                                y = mean_pct_surv,
-                                group = Urea.concentration..M.,
-                                color = Urea.concentration..M.,
-                                shape = ptshape)) +
-  geom_point(size = 3) + 
-  geom_line(lwd = 1.5, aes(x = Duration.of.shock..m., y = mean_pct_surv_lines)) +
+my_cols <- function(n) {hcl.colors(n, palette = "lajolla")}
+ggplot(data = urea_summary[as.numeric(as.character(
+                        urea_summary$Urea.concentration..M.)) <= 6, ], 
+  aes(x = Duration.of.shock..m., y = mean_pct_surv,
+      group = Urea.concentration..M.)) +
+  scale_shape_manual(values = list("8" = 8, "16" = 21)) +
+  geom_point(size = 3, aes(fill = Urea.concentration..M.,
+                           shape = ptshape)) + 
+  geom_line(lwd = 1.5,
+            aes(x = Duration.of.shock..m., y = mean_pct_surv_lines,
+                color = Urea.concentration..M.)) +
   theme_bw() + 
   theme(panel.grid = element_blank(),
         axis.title = element_text(size = 18),
         axis.text = element_text(size = 16)) +
-  labs(x = "Duration of Shock (min)", y = "Percent Survival (%)") +
+  labs(x = "Duration of Urea Shock (min)", 
+       y = "Percent Phage Survivors (%)") +
   geom_hline(yintercept = 100, lty = 2, lwd = 1.15) + 
   geom_hline(yintercept = urea_limit_detection, lty = 3, lwd = 1.15) +
   scale_color_manual(name = "Urea\nConcentration (M)",
-                     values = my_cols(11)) +
-  scale_shape_manual(values = list("8" = 8, "16" = 16)) +
+                     values = my_cols(7)) +
+  scale_fill_manual(name = "Urea\nConcentration (M)",
+                    values = my_cols(7)) +
   scale_y_continuous(breaks = c(100, 10, 1),
                      labels = c("100", "10", "1"),
                      trans="log10") +
-  guides(shape = FALSE) #don't show shape legend
+  scale_x_continuous(breaks = c(0, 30, 60, 90)) +
+  guides(shape = FALSE, #don't show shape legend
+         #override default legend shape to one that has a fill attr
+         fill=guide_legend(override.aes=list(shape=21))) 
 ggsave(filename = "urea_byduration.tiff", width = 8, height = 5, units = "in")
 
 #Statistics
