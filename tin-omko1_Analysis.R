@@ -198,8 +198,10 @@ tempr_sum$ptshape <- as.factor(tempr_sum$ptshape)
 tempr_sum$Temp <- as.factor(tempr_sum$Temp)
 
 my_colr <- colorRampPalette(colors = c("#ffcc00", "red"))
-tempr_plot <- ggplot(data = tempr_sum, aes(x = Duration, y = mean_pct_surv,
-                             group = Temp, color = Temp, shape = ptshape)) +
+#my_colr <- function(n) {hcl.colors(n, palette = "lajolla")}
+tempr_plot <- ggplot(data = tempr_sum[as.character(tempr_sum$Temp) < 80,], 
+                     aes(x = Duration, y = mean_pct_surv,
+                         group = Temp, color = Temp, shape = ptshape)) +
   geom_point(size = 3, alpha = 0.7) + 
   geom_line(aes(x = Duration, y = mean_pct_surv_lines)) + 
   scale_color_manual(name = "Temperature (°C)", values = my_colr(6)) +
@@ -276,17 +278,24 @@ temprdur <- group_by(temprdur, Sample, Duration.of.shock..m.)
 temprdur_sum <- summarize(temprdur, titer_mean = mean(Titer),
                           pct_mean = mean(pct_surv))
 
+my_cols <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2",
+             "#000000")
+
 #Make plot
 temprdur_plot <- ggplot(data = temprdur_sum, aes(x = Duration.of.shock..m.,
                                 y = pct_mean,
                                 group = Sample,
-                                color = Sample)) +
-  geom_point(size = 2.5, alpha = 0.7) + geom_line() +
+                                fill = Sample,
+                                color = Sample,
+                                shape = Sample)) +
+  geom_point(size = 2.5, alpha = 0.8) + geom_line() +
   scale_y_continuous(breaks = c(100, 10, 1, 0.1, 0.01, 0.001, 0.0001, 0.00001),
                      labels = c("100", "10", "1", "0.1", "0.01", "0.001",
                                 "0.0001", "0.00001"),
                      trans="log10") +
-  scale_color_discrete(name = "Phage Stock") +
+  scale_fill_manual(name = "Phage Stock", values = my_cols) +
+  scale_color_manual(name = "Phage Stock", values = my_cols) +
+  scale_shape_manual(name = "Phage Stock", values = c(21:25, 4)) +
   theme_bw() +
   theme(panel.grid = element_blank()) +
   labs(x = "70°C Heat Shock Duration (min)", y = "Percent Survival (%)") +
@@ -646,21 +655,51 @@ for (i in 1:nrow(gc1_groups)) {
 
 #Make plot with summarized data
 plot1 <- sum_data1
-plot1$pfu_inoc <- as.factor(plot1$pfu_inoc)                       
+plot1$pfu_inoc <- as.factor(plot1$pfu_inoc)
+plot1$phage[is.na(plot1$phage)] <- "NA"
+
+#supress error bars when se < 0.008
+plot1$maxpeak_se_plot <- plot1$maxpeak_se
+# plot1$maxpeak_se_plot[plot1$maxpeak_se < 0.008] <- 0.0001
+# 
+# plot1$error_bar_n_all[plot1$maxpeak_se < 0.008] <- 0.001
+# plot1$error_bar_n_subset[plot1$maxpeak_se < 0.008] <- 0.001
+
+#Run through and calculate number of groups in each "plot" x val
+# so we can adjust the error bars to the right width
+plot1$error_bar_n_all <- 0
+plot1$error_bar_n_subset <- 0
+for (myplot in unique(plot1$plot)) {
+  plot1$error_bar_n_all[which(plot1$plot == myplot)] <-
+    nrow(plot1[which(plot1$plot == myplot), ])
+  plot1$error_bar_n_subset[which(plot1$plot != "- Ctrl" &
+                              plot1$pfu_inoc %in% c(0, 200) & 
+                              plot1$plot == myplot)] <-
+    nrow(plot1[which(plot1$plot != "- Ctrl" &
+                       plot1$pfu_inoc %in% c(0, 200) & 
+                       plot1$plot == myplot), ])
+}
+
+my_cols <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2",
+             "#000000")
+
 gc_plot1 <- ggplot(data = plot1[plot1$plot != "- Ctrl" &
-                                      plot1$pfu_inoc %in% c(0, 200),], 
+                                plot1$pfu_inoc %in% c(0, 200),], 
                    aes(x = plot, y = maxpeak_mean)) +
   geom_point(position = position_dodge(width = .4), size = 3,
-             aes(color = phage)) +
+             aes(color = phage, fill = phage, shape = phage)) +
   geom_errorbar(position = position_dodge(width = .4),
-                aes(ymax = maxpeak_mean + 1.96*maxpeak_se,
-                    ymin = maxpeak_mean - 1.96*maxpeak_se,
-                    color = phage),
-                width = .7) +
+                aes(ymax = maxpeak_mean + 1.96*maxpeak_se_plot,
+                    ymin = maxpeak_mean - 1.96*maxpeak_se_plot,
+                    color = phage,
+                    width = .7*error_bar_n_subset/5)) +
   theme_bw()  +
   ylim(NA, 1.85) +
   labs(x = "70°C Heat Shock Duration (min)", y = "Peak Bacterial Density (OD600)") +
-  scale_color_discrete(name = "Phage Stock") +
+  scale_color_manual(name = "Phage Stock", values = my_cols) +
+  scale_fill_manual(name = "Phage Stock", values = my_cols) +
+  scale_shape_manual(name = "Phage Stock",
+                     values = c(21:25, 4)) +
   geom_hline(yintercept = plot1$maxpeak_mean[plot1$plot == "- Ctrl"],
              lty = 3, lwd = 1.15) +
   scale_x_discrete(labels = c("+ Ctrl", "+ Ctrl\nShock", "0", "5", 
@@ -685,8 +724,8 @@ gc_plot1 <- ggplot(data = plot1[plot1$plot != "- Ctrl" &
 gc_plot1
 ggsave(filename = "gc_maxes.tiff", width = 8, height = 5, units = "in")
 
-#Plot all the data
-plot1_sum_temp <- plot1_sum
+#Plot all the summarized data
+plot1_sum_temp <- plot1
 plot1_sum_temp$pfu_inoc <- factor(plot1_sum_temp$pfu_inoc,
                                   levels = c("0, 0", levels(plot1_sum_temp$pfu_inoc)))
 plot1_sum_temp$pfu_inoc[plot1_sum_temp$plot == "- Ctrl"] <- "0, 0"
@@ -696,14 +735,15 @@ gc_plot1_alldata <- ggplot(data = plot1_sum_temp,
   geom_point(position = position_dodge(width = .4), size = 3) +
   geom_errorbar(position = position_dodge(width = .4),
                 aes(ymax = maxpeak_mean + 1.96*maxpeak_se,
-                    ymin = maxpeak_mean - 1.96*maxpeak_se),
-                width = .7) +
+                    ymin = maxpeak_mean - 1.96*maxpeak_se,
+                    width = .7*error_bar_n_all/5)) +
   theme_bw()  +
   theme(panel.grid = element_blank()) +
-  labs(x = "Heat Shock Duration (min)", y = "Peak Bacterial Density (OD600)") +
-  scale_color_discrete(name = "Phage Stock") +
+  labs(x = "70°C Heat Shock Duration (min)", y = "Peak Bacterial Density (OD600)") +
+  scale_color_manual(name = "Phage Stock", values = my_cols) +
+  scale_fill_manual(name = "Phage Stock", values = my_cols) +
   scale_shape_manual(name = "Phage; Bacteria\nInoculated (pfu; cfu)",
-                     values = c(8, 18, 15, 17, 16),
+                     values = c(4, 18, 15, 17, 16),
                      labels = expression("0;           0",
                                          paste("0; ", 20%.%10^6),
                                          paste("50;   ", 5%.%10^6),
