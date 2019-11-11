@@ -197,14 +197,17 @@ for (temp in tempr_sum$Temp) {
 tempr_sum$ptshape <- as.factor(tempr_sum$ptshape)
 tempr_sum$Temp <- as.factor(tempr_sum$Temp)
 
-my_colr <- colorRampPalette(colors = c("#ffcc00", "red"))
+#my_colr <- colorRampPalette(colors = c("#ffcc00", "red"))
+my_colr <- function(n) {hcl.colors(n, palette = "lajolla")}
+
 #my_colr <- function(n) {hcl.colors(n, palette = "lajolla")}
 tempr_plot <- ggplot(data = tempr_sum[as.character(tempr_sum$Temp) < 80,], 
                      aes(x = Duration, y = mean_pct_surv,
                          group = Temp, color = Temp, shape = ptshape)) +
-  geom_point(size = 3, alpha = 0.7) + 
+  geom_point(size = 3, alpha = 0.9) + 
   geom_line(aes(x = Duration, y = mean_pct_surv_lines)) + 
-  scale_color_manual(name = "Temperature (°C)", values = my_colr(6)) +
+  scale_color_manual(name = "Temperature (°C)", 
+                     values = my_colr(7)[2:7]) +
   scale_shape_manual(values = list("8" = 8, "16" = 16)) +
   scale_x_continuous(breaks = seq(from = 0, to = 90, by = 30),
                      limits = c(0, 90)) +
@@ -977,9 +980,9 @@ ggplot(data = urea_summary[as.numeric(as.character(
   geom_hline(yintercept = 100, lty = 2, lwd = 1.15) + 
   geom_hline(yintercept = urea_limit_detection, lty = 3, lwd = 1.15) +
   scale_color_manual(name = "Urea\nConcentration (M)",
-                     values = my_cols(7)) +
+                     values = my_cols(8)[2:8]) +
   scale_fill_manual(name = "Urea\nConcentration (M)",
-                    values = my_cols(7)) +
+                    values = my_cols(8)[2:8]) +
   scale_y_continuous(breaks = c(100, 10, 1),
                      labels = c("100", "10", "1"),
                      trans="log10") +
