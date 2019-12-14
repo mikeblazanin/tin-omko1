@@ -19,4 +19,4 @@ Antibiotic resistant bacterial pathogens are increasingly prevalent, driving the
 
 # Data and Analysis
 
-This repository contains the complete data and analysis code for the above paper. tin-omko1_Analysis.R is the main script file, which reads in the various data files (generally saved as .csv) and produces analyses and output figures. Note that cleaning and description of data files is generally contained in the analysis script, although headers may provide some information.
+This repository contains the complete data and analysis code for the above paper. tin-omko1_Analysis.R is the main script file, which reads in the various data files (generally saved as .csv) and produces analyses and output figures. Note that cleaning and description of data files is generally contained in the analysis script, although headers in data files may provide some information.
