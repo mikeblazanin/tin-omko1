@@ -907,7 +907,7 @@ saline_model <- lm(log10(mean_pct_surv) ~ Saline.Concentration..M. +
                    data = saline_summary)
 anova(saline_model)
 
-#Urea ----
+#Urea (Tin) ----
 
 #Read & factorize data
 urea_data <- read.csv("Urea-Survival.csv")
@@ -1025,3 +1025,101 @@ urea_coeffs
 
 #For degrees of freedom:
 summary(urea_model_0)
+
+#Urea (Emma) ----
+
+#Read & factorize data
+urea_data2 <- read.csv("Urea-Survival-Emma.csv")
+urea_data2$Molarity <- as.factor(urea_data2$Molarity)
+#Calculate titer
+urea_data2$pfu_ml <- urea_data2$Plaques/(10**(urea_data2$Dilution-1))
+
+#Adjust values below bd
+urea_data2$bd <- 0
+urea_data2$bd[urea_data2$pfu_ml == 0] <- 1
+urea_data2$pfu_ml[urea_data2$bd == 1] <- 100
+
+#Calculate percent survival
+urea_data2$pct_surv <- NA
+for (i in 1:nrow(urea_data2)) {
+  urea_data2$pct_surv[i] <- 100*urea_data2$pfu_ml[i]/mean(
+    urea_data2$pfu_ml[urea_data2$Date == urea_data2$Date[i] &
+                        urea_data2$Molarity == 0 &
+                        urea_data2$Time == 0])
+}
+
+urea_detec_lim2 = max(urea_data2$pct_surv[urea_data2$bd == 1])
+
+#Summarize
+#Here we're making any point which has any of the 3 titers below detection
+# as below detection itself
+urea2_summary <- dplyr::summarize(group_by(urea_data2, 
+                                           Date, Molarity, Time),
+                                 mean_pfuml = mean(pfu_ml),
+                                 mean_pctsurv = mean(pct_surv),
+                                 bd = ifelse(any(bd == 1), 1, 0))
+
+urea2_sum_sum <- dplyr::summarise(group_by(urea2_summary,
+                                           Molarity, Time),
+                                  mean_pctsurv = mean(mean_pctsurv))
+
+#Plot summarized data, duration on X
+my_cols <- function(n) {hcl.colors(n, palette = "lajolla")}
+tiff("Urea_byduration2.tiff", width = 6, height = 4, units = "in", res = 300)
+ggplot(data = urea2_sum_sum,
+       aes(x = Time, y = mean_pctsurv, color = as.factor(Molarity))) +
+  geom_line(data = urea2_summary,
+            aes(x = as.numeric(Time), y = mean_pctsurv, 
+                color = as.factor(Molarity),
+                group = paste(Molarity, Date), lty = as.factor(bd)),
+            alpha = 0.5, lwd = 0.75,
+            position = position_jitter(width = 0, height = 0.07, seed = 1)) +
+  geom_line(lwd = 2) +
+  scale_y_continuous(breaks = c(100, 10, 1),
+                     labels = c("100", "10", "1"),
+                     trans="log10") +  
+  scale_x_continuous(breaks = c(0, 45, 90)) +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        axis.title = element_text(size = 18),
+        axis.text = element_text(size = 16)) +
+  labs(x = "Duration of Urea Shock (min)",
+       y = "Percent Phage Survivors (%)") +
+  scale_color_manual(name = "Urea\nConcentration (M)",
+                     values = my_cols(6)[2:6]) +
+  geom_hline(yintercept = urea_detec_lim2, lty = 3, lwd = 1, alpha = 0.5) +
+  guides(lty = FALSE) + #don't show shape legend
+  #facet_grid(~Date) +
+  NULL
+dev.off()
+
+
+#Statistics
+
+#Take subset of data that has 3+ observations in treatment & exclude any bd points
+urea2_stats <- urea2_summary[urea2_summary$bd == 0, ]
+
+#Run stats
+urea2_model_0 <- lm(log10(mean_pctsurv) ~ Molarity +
+                     Molarity:Time,
+                   data = urea2_stats)
+anova(urea2_model_0)
+qqnorm(urea2_model_0$residuals)
+
+#Get contrasts (all slopes are contrasted with 0 already) 
+urea2_coeffs <- summary(urea2_model_0)$coefficients
+
+#Take the subset we actually care about (just the slopes)
+urea2_coeffs <- urea2_coeffs[6:10, ]
+
+#Adjust t-tests to be one-tailed
+urea2_coeffs <- adjust_ttests(urea2_coeffs, alternative = "less")
+
+#Add corrected p-values
+urea2_coeffs <- cbind(urea2_coeffs, 
+                     "Adj p" = p.adjust(urea2_coeffs[, "One-tailed Pr"], 
+                                        method = "bonferroni"))
+urea2_coeffs
+
+#For degrees of freedom:
+summary(urea2_model_0)
