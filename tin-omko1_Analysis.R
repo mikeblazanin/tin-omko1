@@ -813,7 +813,7 @@ ggsave(filename = "gc_maxes_varypfu.tiff", width = 8, height = 5, units = "in")
 # ggplot(data = out_data3[out_data3$totalpfuinoc > 0, ], aes(x = totalpfuinoc, y = maxtime)) +
 #   geom_jitter(height = 0, width = 5, pch = 21, size = 2)
 
-#Saline ----
+#Saline (Tin) ----
 saline_data <- read.csv("Saline-Survival.csv", stringsAsFactors = F)
 #saline_data$Saline.Concentration..M.[saline_data$Saline.Concentration..M. == "0.17 (LB)"] <- "0.17"
 #saline_data$Duration.of.shock..m. <- factor(saline_data$Duration.of.shock..m.)
@@ -906,6 +906,110 @@ saline_model <- lm(log10(mean_pct_surv) ~ Saline.Concentration..M. +
                      Saline.Concentration..M.:Duration.of.shock..m.,
                    data = saline_summary)
 anova(saline_model)
+
+#Saline (Emma) ----
+saline_data2 <- read.csv("Saline-Survival-Emma.csv", stringsAsFactors = F)
+#Note that dilutions are 1:20 -1, 1:20 -2, 1:20 -3
+saline_data2$pfu_ml <- 20*saline_data2$Plaques/(10**(saline_data2$Dilution-1))
+
+#Calculate percent survival
+saline_data2$pct_surv <- NA
+for (i in 1:nrow(saline_data2)) {
+  saline_data2$pct_surv[i] <- 100*saline_data2$pfu_ml[i]/mean(
+    saline_data2$pfu_ml[saline_data2$Date == saline_data2$Date[i] &
+                        saline_data2$Molarity == 0.17 &
+                        saline_data2$Time == 0])
+}
+
+#Calculate limit of detection
+saline2_lim_det_pct <- 100*20*1/(10**-2)/
+  min(saline2_summary$mean_pfuml[saline2_summary$Time == 0])
+
+#Summarize
+saline2_summary <- dplyr::summarize(group_by(saline_data2, 
+                                           Date, Molarity, Time),
+                                  mean_pfuml = mean(pfu_ml),
+                                  mean_pctsurv = mean(pct_surv))
+
+saline2_sum_sum <- dplyr::summarise(group_by(saline2_summary,
+                                           Molarity, Time),
+                                  mean_pctsurv = mean(mean_pctsurv))
+
+#Plot summarized data, duration on X
+my_cols <- function(n) {hcl.colors(n, palette = "lajolla")}
+tiff("Saline_byduration2.tiff", width = 6, height = 4, units = "in", res = 300)
+ggplot(data = saline2_sum_sum,
+       aes(x = Time, y = mean_pctsurv, color = as.factor(Molarity))) +
+  geom_line(data = saline2_summary,
+            aes(x = as.numeric(Time), y = mean_pctsurv,
+                color = as.factor(Molarity),
+                group = paste(Molarity, Date)),
+            alpha = 0.5, lwd = 0.5,
+            position = position_jitter(width = 0, height = 0.07, seed = 1)) +
+  geom_line(lwd = 2) +
+  scale_y_continuous(breaks = c(100, 10, 1),
+                     labels = c("100", "10", "1"),
+                     trans="log10") +  
+  scale_x_continuous(breaks = c(0, 45, 90)) +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        axis.title = element_text(size = 18),
+        axis.text = element_text(size = 16)) +
+  labs(x = "Duration of Saline Shock (min)",
+       y = "Percent Phage Survivors (%)") +
+  scale_color_manual(name = "Saline\nConcentration (M)",
+                     values = my_cols(6)[2:6]) +
+  geom_hline(yintercept = saline2_lim_det_pct, lty = 3, lwd = 1, alpha = 0.5) +
+  #guides(lty = FALSE) + #don't show shape legend
+  #facet_grid(~Date) +
+  NULL
+dev.off()
+
+#Statistics
+
+#Take subset of data that has 3+ observations in treatment & exclude any bd points
+saline2_stats <- saline2_summary
+saline2_stats$Molarity <- as.factor(saline2_stats$Molarity)
+saline2_stats$Molarity <- relevel(saline2_stats$Molarity, ref = "0.17")
+
+#Run stats
+saline2_model_0 <- lm(log10(mean_pctsurv) ~ Molarity +
+                      Molarity:Time,
+                    data = saline2_stats)
+anova(saline2_model_0)
+qqnorm(saline2_model_0$residuals)
+
+#Get contrasts (all slopes are contrasted with 0 already) 
+saline2_coeffs <- summary(saline2_model_0)$coefficients
+
+#Take the subset we actually care about (just the slopes)
+saline2_coeffs <- saline2_coeffs[6:10, ]
+
+#Adjust t-tests to be one-tailed
+saline2_coeffs <- adjust_ttests(saline2_coeffs, alternative = "less")
+
+#Add corrected p-values
+saline2_coeffs <- cbind(saline2_coeffs, 
+                      "Adj p" = p.adjust(saline2_coeffs[, "One-tailed Pr"], 
+                                         method = "bonferroni"))
+saline2_coeffs
+
+#For degrees of freedom:
+summary(saline2_model_0)
+
+##Re-run stats excluding the one outlier
+saline2_stats2 <- saline2_summary[saline2_summary$mean_pctsurv > 25, ]
+saline2_stats2$Molarity <- as.factor(saline2_stats2$Molarity)
+saline2_stats2$Molarity <- relevel(saline2_stats2$Molarity, ref = "0.17")
+
+saline2_model_1 <- lm(log10(mean_pctsurv) ~ Molarity +
+                        Molarity:Time,
+                      data = saline2_stats2)
+anova(saline2_model_1)
+qqnorm(saline2_model_1$residuals)
+
+summary(saline2_model_1)
+
 
 #Urea (Tin) ----
 
@@ -1031,13 +1135,15 @@ summary(urea_model_0)
 #Read & factorize data
 urea_data2 <- read.csv("Urea-Survival-Emma.csv")
 urea_data2$Molarity <- as.factor(urea_data2$Molarity)
-#Calculate titer
-urea_data2$pfu_ml <- urea_data2$Plaques/(10**(urea_data2$Dilution-1))
 
 #Adjust values below bd
 urea_data2$bd <- 0
-urea_data2$bd[urea_data2$pfu_ml == 0] <- 1
-urea_data2$pfu_ml[urea_data2$bd == 1] <- 100
+urea_data2$bd[urea_data2$Plaques == 0] <- 1
+urea_data2$Plaques[urea_data2$bd == 1] <- 1
+
+#Calculate titer
+#(note that dilutions are 1:20 -1, 1:20 -2, etc)
+urea_data2$pfu_ml <- 20*urea_data2$Plaques/(10**(urea_data2$Dilution-1))
 
 #Calculate percent survival
 urea_data2$pct_surv <- NA
@@ -1048,16 +1154,24 @@ for (i in 1:nrow(urea_data2)) {
                         urea_data2$Time == 0])
 }
 
-urea_detec_lim2 = max(urea_data2$pct_surv[urea_data2$bd == 1])
+
+#Calculate limit of detection
+#urea_detec_lim2 = max(urea_data2$pct_surv[urea_data2$bd == 1])
+#Alternative method producing the same result
+urea_detec_lim2 <- mean(100*20*1/(10**-2)/
+  (urea2_summary$mean_pfuml[urea2_summary$Time == 0]))
 
 #Summarize
-#Here we're making any point which has any of the 3 titers below detection
+#Here we're making points which have all of the 3 titers below detection
 # as below detection itself
-urea2_summary <- dplyr::summarize(group_by(urea_data2, 
-                                           Date, Molarity, Time),
-                                 mean_pfuml = mean(pfu_ml),
-                                 mean_pctsurv = mean(pct_surv),
-                                 bd = ifelse(any(bd == 1), 1, 0))
+# (and excluding bd values when some are non-bd)
+urea2_summary <- 
+  dplyr::summarize(group_by(urea_data2, 
+                            Date, Molarity, Time),
+                   mean_pfuml = ifelse(all(bd == 1), 
+                                       mean(pfu_ml), mean(pfu_ml[bd == 0])),
+                   mean_pctsurv = mean(pct_surv),
+                   bd = ifelse(all(bd == 1), 1, 0))
 
 urea2_sum_sum <- dplyr::summarise(group_by(urea2_summary,
                                            Molarity, Time),
@@ -1092,6 +1206,32 @@ ggplot(data = urea2_sum_sum,
   #facet_grid(~Date) +
   NULL
 dev.off()
+
+ggplot(data = urea2_summary,
+       aes(x = Time, y = mean_pctsurv, color = as.factor(Molarity))) +
+  # geom_line(data = urea2_summary,
+  #           aes(x = as.numeric(Time), y = mean_pctsurv,
+  #               color = as.factor(Molarity),
+  #               group = paste(Molarity, Date), lty = as.factor(bd)),
+  #           alpha = 0.5, lwd = 0.75,
+  #           position = position_jitter(width = 0, height = 0.07, seed = 1)) +
+  geom_line(lwd = 2) +
+  scale_y_continuous(breaks = c(100, 10, 1),
+                     labels = c("100", "10", "1"),
+                     trans="log10") +  
+  scale_x_continuous(breaks = c(0, 45, 90)) +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        axis.title = element_text(size = 18),
+        axis.text = element_text(size = 16)) +
+  labs(x = "Duration of Urea Shock (min)",
+       y = "Percent Phage Survivors (%)") +
+  scale_color_manual(name = "Urea\nConcentration (M)",
+                     values = my_cols(6)[2:6]) +
+  geom_hline(yintercept = urea_detec_lim2, lty = 3, lwd = 1, alpha = 0.5) +
+  guides(lty = FALSE) + #don't show shape legend
+  facet_grid(~Date) +
+  NULL
 
 
 #Statistics
