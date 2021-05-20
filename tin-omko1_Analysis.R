@@ -921,10 +921,6 @@ for (i in 1:nrow(saline_data2)) {
                         saline_data2$Time == 0])
 }
 
-#Calculate limit of detection
-saline2_lim_det_pct <- 100*20*1/(10**-2)/
-  min(saline2_summary$mean_pfuml[saline2_summary$Time == 0])
-
 #Summarize
 saline2_summary <- dplyr::summarize(group_by(saline_data2, 
                                            Date, Molarity, Time),
@@ -934,6 +930,10 @@ saline2_summary <- dplyr::summarize(group_by(saline_data2,
 saline2_sum_sum <- dplyr::summarise(group_by(saline2_summary,
                                            Molarity, Time),
                                   mean_pctsurv = mean(mean_pctsurv))
+
+#Calculate limit of detection
+saline2_lim_det_pct <- mean(100*20*1/(10**-2)/
+                              (saline2_summary$mean_pfuml[saline2_summary$Time == 0]))
 
 #Plot summarized data, duration on X
 my_cols <- function(n) {hcl.colors(n, palette = "lajolla")}
@@ -1154,13 +1154,6 @@ for (i in 1:nrow(urea_data2)) {
                         urea_data2$Time == 0])
 }
 
-
-#Calculate limit of detection
-#urea_detec_lim2 = max(urea_data2$pct_surv[urea_data2$bd == 1])
-#Alternative method producing the same result
-urea_detec_lim2 <- mean(100*20*1/(10**-2)/
-  (urea2_summary$mean_pfuml[urea2_summary$Time == 0]))
-
 #Summarize
 #Here we're making points which have all of the 3 titers below detection
 # as below detection itself
@@ -1176,6 +1169,12 @@ urea2_summary <-
 urea2_sum_sum <- dplyr::summarise(group_by(urea2_summary,
                                            Molarity, Time),
                                   mean_pctsurv = mean(mean_pctsurv))
+
+#Calculate limit of detection
+#urea_detec_lim2 = max(urea_data2$pct_surv[urea_data2$bd == 1])
+#Alternative method producing the same result
+urea_detec_lim2 <- mean(100*20*1/(10**-2)/
+                          (urea2_summary$mean_pfuml[urea2_summary$Time == 0]))
 
 #Plot summarized data, duration on X
 my_cols <- function(n) {hcl.colors(n, palette = "lajolla")}
