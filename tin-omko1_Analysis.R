@@ -537,11 +537,11 @@ view_peaks <- function(data_mlt, data_out, plt_point = TRUE,
   for (start_group in seq(from = 1, to = length(unique(data_mlt$Contents)), by = numplots)) {
     my_groups <- unique(data_mlt$Contents)[start_group:(start_group+numplots-1)]
     myplot <- ggplot(data = data_mlt[data_mlt$Contents %in% my_groups, ],
-                     aes(x = Time, y = sm_od)) + geom_line(lwd = lwd) +
+                     aes(x = Time/3600, y = sm_od)) + geom_line(lwd = lwd) +
       facet_wrap(~Contents) + ylab("Smoothed OD600")
     if (plt_point) {myplot <- myplot + 
       geom_point(data = data_out[data_out$Contents %in% my_groups, ],
-                 aes(x = maxtime, y = max),
+                 aes(x = maxtime/3600, y = max),
                  size = 3, pch = 13)
     }
     print(myplot)
@@ -656,6 +656,36 @@ for (i in 1:nrow(gc1_groups)) {
 
 #Growth Curve Publication Figures ----
 
+mynames <- c("A" = "R3", "B" = "S3", "C" = "S8", "D" = "S11", "E" = "S16")
+gc_data1$phage <- names(mynames)[match(gc_data1$phage, mynames)]
+
+#Make plot of all non-control curves
+my_cols <- function(n) {hcl.colors(n, palette = "lajolla")}
+png("All_curves.png", width = 7, height = 5, units = "in",
+    res = 300)
+ggplot(data = gc_data1[
+  gc_data1$phage %in% LETTERS[1:5] &
+    gc_data1$Contents %in% out_data1$Contents &
+    gc_data1$Contents %in% out_data1$Contents[out_data1$pfu_inoc == 200], ],
+  aes(x = Time/3600, y = sm_od, color = as.factor(phageshock),
+      group = as.factor(paste(phageshock, Rep)))) +
+  geom_line(lwd = 1.2, alpha = 0.8) +
+  facet_wrap(~phage) +
+  scale_color_manual(name = "Phage\nHeat\nShock\nDuration\n(min)",
+                     breaks = c(0, 5, 90, 180, 270, 360),
+                     values = my_cols(6)[2:6]) +
+  labs(y = "Bacterial Density (OD600)", x = "Time (hr)",
+       subtitle = "Phage Stock") +
+  theme_bw() +
+  theme(axis.text = element_text(size = 14),
+        axis.title = element_text(size = 18),
+        strip.text = element_text(size = 18),
+        legend.title = element_text(size = 18),
+        legend.text = element_text(size = 14),
+        plot.subtitle = element_text(size = 18)) +
+  NULL
+dev.off()
+
 #Make plot with summarized data
 plot1 <- sum_data1
 plot1$pfu_inoc <- as.factor(plot1$pfu_inoc)
@@ -685,7 +715,6 @@ for (myplot in unique(plot1$plot)) {
 
 my_cols <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2",
              "#000000")
-
 gc_plot1 <- ggplot(data = plot1[plot1$plot != "- Ctrl" &
                                 plot1$pfu_inoc %in% c(0, 200),], 
                    aes(x = plot, y = maxpeak_mean)) +
