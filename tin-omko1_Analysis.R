@@ -1268,53 +1268,26 @@ urea_detec_lim2 <- mean(100*20*1/(10**-2)/
 
 #Plot summarized data, duration on X
 my_cols <- function(n) {hcl.colors(n, palette = "lajolla")}
-tiff("Urea_byduration2.tiff", width = 6, height = 4, units = "in", res = 300)
-ggplot(data = urea2_sum_sum,
-       aes(x = Time, y = mean_pctsurv, color = as.factor(Molarity))) +
-  geom_line(data = urea2_summary,
-            aes(x = as.numeric(Time), y = mean_pctsurv, 
-                color = as.factor(Molarity),
-                group = paste(Molarity, Date), lty = as.factor(bd)),
-            alpha = 0.5, lwd = 0.75,
-            position = position_jitter(width = 0, height = 0.07, seed = 1)) +
-  geom_line(lwd = 2) +
-  scale_y_continuous(breaks = c(100, 10, 1),
-                     labels = c("100", "10", "1"),
-                     trans="log10") +  
-  scale_x_continuous(breaks = c(0, 45, 90)) +
-  theme_bw() +
-  theme(panel.grid = element_blank(),
-        axis.title = element_text(size = 18),
-        axis.text = element_text(size = 16)) +
-  labs(x = "Duration of Urea Shock (min)",
-       y = "Percent Phage Survivors (%)") +
-  scale_color_manual(name = "Urea\nConcentration (M)",
-                     values = my_cols(6)[2:6]) +
-  geom_hline(yintercept = urea_detec_lim2, lty = 3, lwd = 1, alpha = 0.5) +
-  guides(lty = FALSE) + #don't show shape legend
-  #facet_grid(~Date) +
-  NULL
-dev.off()
 
-#Tweaked w time on X
+#If line segments going to 0 are same as rest of line segments
+# can add pseudo-data to data frame and just plot with geom_line
 # urea2_sum_sum <- rbind(urea2_sum_sum,
 #                        data.frame(Molarity = as.factor(c(1, 2, 3, 4)),
 #                                   Time = c(0, 0, 0, 0),
 #                                   mean_pctsurv = c(100, 100, 100, 100)))
-
-tiff("Urea_byduration2_tweaked.tiff", width = 6, height = 4, units = "in", res = 300)
+tiff("Urea_byduration2.tiff", width = 6, height = 4, units = "in", res = 300)
 ggplot(data = urea2_sum_sum,
        aes(x = Time, y = mean_pctsurv, color = as.factor(Molarity))) +
   geom_point(data = urea2_summary,
-            aes(x = as.numeric(Time), y = mean_pctsurv,
-                color = as.factor(Molarity),
-                group = as.factor(Molarity), shape = as.factor(bd)),
-            alpha = 0.8, size = 1.8, stroke = 1.3,
-            position = position_dodge(width = 15)) +
+             aes(x = as.numeric(Time), y = mean_pctsurv,
+                 color = as.factor(Molarity),
+                 group = as.factor(Molarity), shape = as.factor(bd)),
+             alpha = 0.8, size = 1.8, stroke = 0.8,
+             position = position_dodge(width = 15)) +
   geom_line(lwd = 2, position = position_dodge(width = 15), alpha = 1) +
   geom_segment(data = urea2_sum_sum[urea2_sum_sum$Time == 45 &
                                       urea2_sum_sum$Molarity != 0, ],
-               aes(x = 0, xend = 45.1+3*(as.numeric(as.character(Molarity))-2),
+               aes(x = 0, xend = 45.2+3*(as.numeric(as.character(Molarity))-2),
                    y = 100, yend = mean_pctsurv),
                lty = 1, lwd = 2, alpha = 1) +
   scale_y_continuous(breaks = c(100, 10, 1),
@@ -1331,19 +1304,13 @@ ggplot(data = urea2_sum_sum,
                      values = my_cols(6)[2:6]) +
   scale_shape_manual(breaks = c(0, 1), values = c(16, 8)) +
   #geom_hline(yintercept = urea_detec_lim2, lty = 3, lwd = 1, alpha = 0.5) +
-  guides(lty = FALSE) + #don't show shape legend
-  #facet_grid(~Date) +
+  guides(shape = FALSE) + #don't show shape legend
   NULL
 dev.off()
 
+#Plot with assays faceted
 ggplot(data = urea2_summary,
        aes(x = Time, y = mean_pctsurv, color = as.factor(Molarity))) +
-  # geom_line(data = urea2_summary,
-  #           aes(x = as.numeric(Time), y = mean_pctsurv,
-  #               color = as.factor(Molarity),
-  #               group = paste(Molarity, Date), lty = as.factor(bd)),
-  #           alpha = 0.5, lwd = 0.75,
-  #           position = position_jitter(width = 0, height = 0.07, seed = 1)) +
   geom_line(lwd = 2) +
   scale_y_continuous(breaks = c(100, 10, 1),
                      labels = c("100", "10", "1"),
@@ -1362,8 +1329,9 @@ ggplot(data = urea2_summary,
   facet_grid(~Date) +
   NULL
 
+#Alternative plot orientation w/ molarity on X
 #urea2_summary$Molarity <- as.factor(urea2_summary$Molarity)
-tiff("Urea_byduration2_new.tiff", width = 6, height = 4, units = "in", res = 300)
+tiff("Urea_bymolarity2.tiff", width = 6, height = 4, units = "in", res = 300)
 ggplot(data = urea2_summary,
        aes(x = as.factor(Molarity), y = mean_pctsurv, color = as.factor(Time))) +
   geom_point(position = position_dodge(width = 0.5), 
@@ -1375,7 +1343,7 @@ ggplot(data = urea2_summary,
                        position = position_dodge(width = 0.5)) +
   scale_y_continuous(breaks = c(100, 10, 1), labels = c("100", "10", "1"),
                      trans="log10") +  
-  geom_hline(yintercept = urea_detec_lim2, lty = 3, lwd = 1, alpha = 0.5) +
+  #geom_hline(yintercept = urea_detec_lim2, lty = 3, lwd = 1, alpha = 0.5) +
   theme_bw() +
   theme(panel.grid = element_blank(),
         axis.title = element_text(size = 18),
@@ -1384,7 +1352,7 @@ ggplot(data = urea2_summary,
        y = "Percent Phage Survivors (%)") +
   scale_color_manual(name = "Timepoint\n(min)",
                      values = my_cols(4)[2:4]) +
-  scale_shape_manual(breaks = c(0, 1), values = c(16, 1)) +
+  scale_shape_manual(breaks = c(0, 1), values = c(16, 8)) +
   NULL
 dev.off()
 
