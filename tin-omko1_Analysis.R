@@ -1,8 +1,9 @@
+###Packages & general functions ----
+
 library(ggplot2)
 library(ggsignif)
 library(dplyr)
 
-###Needed general functions:
 #Define function to fix two-tailed tests into one-tailed & apply Bonferroni correction
 adjust_ttests <- function(summary_coefficients, alternative = NULL) {
   if (!(alternative %in% c("greater", "less"))) {
@@ -994,6 +995,66 @@ ggplot(data = saline2_sum_sum,
   NULL
 dev.off()
 
+saline2_summary$Molarity <- factor(saline2_summary$Molarity,
+                                      levels = c(0.17, 0, 0.5, 3, 5))
+tiff("Saline_byduration2_new.tiff", width = 6, height = 4, units = "in", res = 300)
+ggplot(data = saline2_summary,
+       aes(x = as.factor(Molarity), y = mean_pctsurv, color = as.factor(Time))) +
+  geom_point(position = position_dodge(width = 0.5), 
+             alpha = 0.5, size = 2) +
+  ungeviz::geom_hpline(data = saline2_sum_sum,
+                       aes(x = as.factor(Molarity), y = mean_pctsurv),
+                       width = 0.3, alpha = 0.7,
+                       position = position_dodge(width = 0.5)) +
+  scale_y_continuous(breaks = c(100, 10, 1), labels = c("100", "10", "1"),
+                     trans="log10") +  
+  geom_hline(yintercept = saline2_lim_det_pct, lty = 3, lwd = 1, alpha = 0.5) +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        axis.title = element_text(size = 18),
+        axis.text = element_text(size = 16)) +
+  labs(x = "Saline Concentration (M)",
+       y = "Percent Phage Survivors (%)") +
+  scale_color_manual(name = "Timepoint\n(min)",
+                     values = my_cols(4)[2:4]) +
+  NULL
+dev.off()
+
+
+# ggplot(data = saline2_sum_sum,
+#        aes(x = as.factor(Molarity), y = mean_pctsurv, color = as.factor(Time))) +
+#   # geom_line(aes(group = as.factor(Molarity)),
+#   #           position = position_dodge(width = 1)) +
+#   # ungeviz::geom_hpline(width = 0.3,
+#   #                      position = position_dodge2(width = 1, preserve = "single")) +
+#   # geom_segment(aes(x = as.factor(Molarity), xend = as.factor(Molarity),
+#   #                  y = mean_pctsurv, yend = mean_pctsurv)) +
+#   # geom_col(position = position_dodge2(width = .3, preserve = "single"),
+#   #            size = 3, alpha = 0.5) +
+#   scale_y_continuous(breaks = c(100, 10, 1),
+#                      labels = c("100", "10", "1"),
+#                      trans="log10") +  
+#   geom_point(data = saline2_summary,
+#             aes(x = as.factor(Molarity), y = mean_pctsurv,
+#                 color = as.factor(Time)),
+#                 position = position_dodge(width = 1),
+#             alpha = 0.5, size = 2) +
+#   scale_x_discrete(breaks = c("0.17", "0.00", "0.50", "3.00", "5.00")) +
+#   #scale_x_continuous(breaks = c(0, 45, 90)) +
+#   theme_bw() +
+#   theme(panel.grid = element_blank(),
+#         axis.title = element_text(size = 18),
+#         axis.text = element_text(size = 16)) +
+#   labs(x = "Duration of Saline Shock (min)",
+#        y = "Percent Phage Survivors (%)") +
+#   scale_color_manual(name = "Saline\nConcentration (M)",
+#                      values = my_cols(6)[2:6]) +
+#   geom_hline(yintercept = saline2_lim_det_pct, lty = 3, lwd = 1, alpha = 0.5) +
+#   #guides(lty = FALSE) + #don't show shape legend
+#   #facet_grid(~Date) +
+#   NULL
+# dev.off()
+
 #Statistics
 
 #Take subset of data that has 3+ observations in treatment & exclude any bd points
@@ -1235,6 +1296,46 @@ ggplot(data = urea2_sum_sum,
   NULL
 dev.off()
 
+#Tweaked w time on X
+# urea2_sum_sum <- rbind(urea2_sum_sum,
+#                        data.frame(Molarity = as.factor(c(1, 2, 3, 4)),
+#                                   Time = c(0, 0, 0, 0),
+#                                   mean_pctsurv = c(100, 100, 100, 100)))
+
+tiff("Urea_byduration2_tweaked.tiff", width = 6, height = 4, units = "in", res = 300)
+ggplot(data = urea2_sum_sum,
+       aes(x = Time, y = mean_pctsurv, color = as.factor(Molarity))) +
+  geom_point(data = urea2_summary,
+            aes(x = as.numeric(Time), y = mean_pctsurv,
+                color = as.factor(Molarity),
+                group = as.factor(Molarity), shape = as.factor(bd)),
+            alpha = 0.8, size = 1.8, stroke = 1.3,
+            position = position_dodge(width = 15)) +
+  geom_line(lwd = 2, position = position_dodge(width = 15), alpha = 1) +
+  geom_segment(data = urea2_sum_sum[urea2_sum_sum$Time == 45 &
+                                      urea2_sum_sum$Molarity != 0, ],
+               aes(x = 0, xend = 45.1+3*(as.numeric(as.character(Molarity))-2),
+                   y = 100, yend = mean_pctsurv),
+               lty = 1, lwd = 2, alpha = 1) +
+  scale_y_continuous(breaks = c(100, 10, 1),
+                     labels = c("100", "10", "1"),
+                     trans="log10") +  
+  scale_x_continuous(breaks = c(0, 45, 90)) +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        axis.title = element_text(size = 18),
+        axis.text = element_text(size = 16)) +
+  labs(x = "Timepoint (min)",
+       y = "Percent Phage Survivors (%)") +
+  scale_color_manual(name = "Urea\nConcentration (M)",
+                     values = my_cols(6)[2:6]) +
+  scale_shape_manual(breaks = c(0, 1), values = c(16, 8)) +
+  #geom_hline(yintercept = urea_detec_lim2, lty = 3, lwd = 1, alpha = 0.5) +
+  guides(lty = FALSE) + #don't show shape legend
+  #facet_grid(~Date) +
+  NULL
+dev.off()
+
 ggplot(data = urea2_summary,
        aes(x = Time, y = mean_pctsurv, color = as.factor(Molarity))) +
   # geom_line(data = urea2_summary,
@@ -1260,6 +1361,32 @@ ggplot(data = urea2_summary,
   guides(lty = FALSE) + #don't show shape legend
   facet_grid(~Date) +
   NULL
+
+#urea2_summary$Molarity <- as.factor(urea2_summary$Molarity)
+tiff("Urea_byduration2_new.tiff", width = 6, height = 4, units = "in", res = 300)
+ggplot(data = urea2_summary,
+       aes(x = as.factor(Molarity), y = mean_pctsurv, color = as.factor(Time))) +
+  geom_point(position = position_dodge(width = 0.5), 
+             alpha = 0.5, size = 2, 
+             aes(shape = as.factor(bd), group = as.factor(Time))) +
+  ungeviz::geom_hpline(data = urea2_sum_sum,
+                       aes(x = as.factor(Molarity), y = mean_pctsurv),
+                       width = 0.3, alpha = 0.7,
+                       position = position_dodge(width = 0.5)) +
+  scale_y_continuous(breaks = c(100, 10, 1), labels = c("100", "10", "1"),
+                     trans="log10") +  
+  geom_hline(yintercept = urea_detec_lim2, lty = 3, lwd = 1, alpha = 0.5) +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        axis.title = element_text(size = 18),
+        axis.text = element_text(size = 16)) +
+  labs(x = "Urea Concentration (M)",
+       y = "Percent Phage Survivors (%)") +
+  scale_color_manual(name = "Timepoint\n(min)",
+                     values = my_cols(4)[2:4]) +
+  scale_shape_manual(breaks = c(0, 1), values = c(16, 1)) +
+  NULL
+dev.off()
 
 
 #Statistics
