@@ -205,8 +205,9 @@ my_colr <- function(n) {hcl.colors(n, palette = "lajolla")}
 tempr_plot <- ggplot(data = tempr_sum[as.character(tempr_sum$Temp) < 80,], 
                      aes(x = Duration, y = mean_pct_surv,
                          group = Temp, color = Temp, shape = ptshape)) +
-  geom_point(size = 3, alpha = 0.9) + 
-  geom_line(aes(x = Duration, y = mean_pct_surv_lines)) + 
+  geom_point(alpha = 0.8, size = 1.8, stroke = 0.8) + 
+  geom_line(aes(x = Duration, y = mean_pct_surv_lines),
+            lwd = 2, alpha = 0.8) + 
   scale_color_manual(name = "Temperature (°C)", 
                      values = my_colr(7)[2:7]) +
   scale_shape_manual(values = list("8" = 8, "16" = 16)) +
@@ -215,16 +216,19 @@ tempr_plot <- ggplot(data = tempr_sum[as.character(tempr_sum$Temp) < 80,],
   scale_y_continuous(breaks = c(100, 10, 1),
                      labels = c("100", "10", "1"),
                      trans="log10") +
-  labs(x = "Heat Shock Duration (min)",
-       y = "Percent Survival (%)") +
+  labs(x = "Timepoint (min)",
+       y = "Percent Phage Survivors (%)") +
   theme_bw() +
-  theme(panel.grid = element_blank()) +
+  theme(panel.grid = element_blank(),
+        axis.title = element_text(size = 18),
+        axis.text = element_text(size = 16)) +
   geom_hline(yintercept = tempr_limit_detec, lty = 3, lwd = 1.15) +
-  geom_hline(yintercept = 100, lty = 2, lwd = 1.15) + 
+  #geom_hline(yintercept = 100, lty = 2, lwd = 1.15) + 
   guides(shape = FALSE) +
   NULL
+tiff("temp_surv.tiff", width = 6, height = 4, units = "in", res = 300)
 tempr_plot
-ggsave(filename = "temp_surv.tiff", width = 8, height = 5, units = "in")
+dev.off()
 
 #Statistics
 
@@ -274,25 +278,47 @@ temprdur_sum <- summarize(temprdur, titer_mean = mean(Titer),
 temprdur$pct_surv <- 100*temprdur$Titer/temprdur_sum$titer_mean[match(temprdur$Sample,
                                                                   temprdur_sum$Sample)]
 #Calculate limits of detection by assuming 1 pfu on -1 plate (so titer = 100)
-#(only plot the highest limit of detection)
-temprdur_limit_detec <- 100*100/temprdur_sum$titer_mean[
-  temprdur_sum$Duration.of.shock..m. == 0]
+# (plot mean)
+temprdur_limit_detec <- mean(100*100/temprdur_sum$titer_mean[
+  temprdur_sum$Duration.of.shock..m. == 0])
 
 temprdur <- group_by(temprdur, Sample, Duration.of.shock..m.)
 temprdur_sum <- summarize(temprdur, titer_mean = mean(Titer),
                           pct_mean = mean(pct_surv))
-
+temprdur_sum_sum <- summarize(group_by(temprdur_sum, Duration.of.shock..m.),
+                              pct_mean = mean(pct_mean))
+                              
 my_cols <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2",
              "#000000")
 
 #Make plot
-temprdur_plot <- ggplot(data = temprdur_sum, aes(x = Duration.of.shock..m.,
-                                y = pct_mean,
-                                group = Sample,
-                                fill = Sample,
-                                color = Sample,
-                                shape = Sample)) +
-  geom_point(size = 2.5, alpha = 0.8) + geom_line() +
+my_colr <- function(n) {hcl.colors(n, palette = "lajolla")}
+temprdur_plot <- ggplot(data = temprdur_sum, 
+                        aes(x = Duration.of.shock..m., y = pct_mean)) +
+  geom_point(alpha = 0.8, size = 1.8, stroke = 0.8, color = my_colr(7)[6]) + 
+  geom_line(data = temprdur_sum_sum, lwd = 2, alpha = 0.8, color = my_colr(7)[6]) +
+  scale_y_continuous(breaks = c(100, 10, 1, 0.1, 0.01, 0.001, 0.0001, 0.00001),
+                     labels = c("100", "10", "1", "0.1", "0.01", "0.001",
+                                "0.0001", "0.00001"),
+                     trans="log10") +
+  scale_x_continuous(breaks = c(0, 90, 180, 270, 360)) +
+  theme_bw() +
+  theme(panel.grid = element_blank(),
+        axis.title = element_text(size = 18),
+        axis.text = element_text(size = 16)) +  labs(x = "Timepoint (min)", y = "Percent Phage Survivors (%)") +
+  geom_hline(yintercept = temprdur_limit_detec, lty = 3, lwd = 1.15) +
+  NULL
+
+tiff("temp_duration_surv.tiff", width = 6, height = 4, units = "in", res = 300)
+temprdur_plot
+dev.off()
+
+#Plot with Stock information maintained
+ggplot(data = temprdur_sum, 
+                        aes(x = Duration.of.shock..m., y = pct_mean)) +
+  geom_point(size = 1.8, alpha = 0.8,
+             aes(color = Sample, shape = Sample, fill = Sample)) + 
+  geom_line(data = temprdur_sum_sum) +
   scale_y_continuous(breaks = c(100, 10, 1, 0.1, 0.01, 0.001, 0.0001, 0.00001),
                      labels = c("100", "10", "1", "0.1", "0.01", "0.001",
                                 "0.0001", "0.00001"),
@@ -304,9 +330,9 @@ temprdur_plot <- ggplot(data = temprdur_sum, aes(x = Duration.of.shock..m.,
   theme(panel.grid = element_blank()) +
   labs(x = "70°C Heat Shock Duration (min)", y = "Percent Survival (%)") +
   geom_hline(yintercept = 100, lty = 2, lwd = 1.15) +
-  geom_hline(yintercept = max(temprdur_limit_detec), lty = 3, lwd = 1.15)
-temprdur_plot
-ggsave(filename = "temp_duration_surv.tiff", width = 8, height = 5, units = "in")
+  geom_hline(yintercept = max(temprdur_limit_detec), lty = 3, lwd = 1.15) +
+  NULL
+
 
 #Statistics
 colnames(temprdur_sum)[2] <- "Duration"
@@ -714,6 +740,52 @@ for (myplot in unique(plot1$plot)) {
                        plot1$plot == myplot), ])
 }
 
+#Make dummy variable for whether phage were added
+plot1$phage_added <- ifelse(plot1$phage %in% LETTERS[1:5], 1, 0)
+
+gc_plot1 <- ggplot(data = plot1[plot1$plot != "- Ctrl" &
+                                  plot1$pfu_inoc %in% c(0, 200) &
+                                  plot1$plot %in% c("+ Ctrl", "+ Ctrl Shock",
+                                                    "0", "5", "90", "180"), ], 
+                   aes(x = plot, y = maxpeak_mean)) +
+  geom_point(aes(shape = as.factor(phage_added)),
+             size = 3, alpha = 0.8) +
+  geom_errorbar(position = position_dodge(width = .4),
+                aes(ymax = maxpeak_mean + 1.96*maxpeak_se_plot,
+                    ymin = maxpeak_mean - 1.96*maxpeak_se_plot,
+                    width = .7/5)) +
+  theme_bw()  +
+  ylim(NA, 1.85) +
+  labs(x = "70°C Heat Shock Duration (min)", y = "Peak Bacterial Density (OD600)") +
+  scale_shape_manual(name = "Phage\nAdded?", breaks = c(1, 0), values = c(16, 17),
+                     labels = c("Yes", "No")) +
+  geom_hline(yintercept = plot1$maxpeak_mean[plot1$plot == "- Ctrl"],
+             lty = 3, lwd = 1.15) +
+  # scale_x_discrete(labels = c("+ Ctrl", "+ Ctrl\nShock", "0", "5", 
+  #                             "90", "180", "270")) +
+  theme(panel.grid = element_blank()) +
+  #  theme(axis.text.x = element_text(angle = 30, size = 12, hjust = 1)) +
+  geom_text(data = gc1_groups,
+            aes(x = plot, y = height + 0.3, label = statgroup)) +
+  geom_signif(comparisons = list(c("+ Ctrl", "0")),
+              tip_length = 0.01, y_position = 1.7,
+              annotation = ifelse(max(curve1_coefs[1:5, "Adj p"]) < 0.001,
+                                  "p<0.001",
+                                  paste("p<", max(curve1_coefs[1:5, "Adj p"]),
+                                        sep = ""))) +
+  geom_signif(comparisons = list(c("+ Ctrl Shock", "0")),
+              tip_length = 0.01, y_position = 1.5,
+              annotation = ifelse(max(curve1_coefs[1:5, "Adj p"]) < 0.001,
+                                  "p<0.001",
+                                  paste("p<", max(curve1_coefs[1:5, "Adj p"]),
+                                        sep = ""))) +
+  NULL
+
+tiff("gc_maxes.tiff", width = 6, height = 4, units = "in", res = 300)
+gc_plot1
+dev.off()
+
+#Plot with color & shape information retained
 my_cols <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2",
              "#000000")
 gc_plot1 <- ggplot(data = plot1[plot1$plot != "- Ctrl" &
@@ -755,6 +827,9 @@ gc_plot1 <- ggplot(data = plot1[plot1$plot != "- Ctrl" &
                                         sep = ""))) +
   NULL
 gc_plot1
+
+
+
 ggsave(filename = "gc_maxes.tiff", width = 8, height = 5, units = "in")
 
 #Plot all the summarized data
@@ -967,16 +1042,27 @@ saline2_lim_det_pct <- mean(100*20*1/(10**-2)/
 
 #Plot summarized data, duration on X
 my_cols <- function(n) {hcl.colors(n, palette = "lajolla")}
+#Add pseudo-data for plotting
+temp_sum_sum <- rbind(saline2_sum_sum,
+                      data.frame(Molarity = c(0, 0.5, 3, 5),
+                                 Time = c(0, 0, 0, 0),
+                                 mean_pctsurv = c(100, 100, 100, 100)))
 tiff("Saline_byduration2.tiff", width = 6, height = 4, units = "in", res = 300)
-ggplot(data = saline2_sum_sum,
+ggplot(data = temp_sum_sum,
        aes(x = Time, y = mean_pctsurv, color = as.factor(Molarity))) +
-  geom_line(data = saline2_summary,
-            aes(x = as.numeric(Time), y = mean_pctsurv,
-                color = as.factor(Molarity),
-                group = paste(Molarity, Date)),
-            alpha = 0.5, lwd = 0.5,
-            position = position_jitter(width = 0, height = 0.07, seed = 1)) +
-  geom_line(lwd = 2) +
+  geom_line(lwd = 2, alpha = 0.8) +
+  geom_point(data = saline2_summary,
+             aes(x = as.numeric(Time), y = mean_pctsurv,
+                 color = as.factor(Molarity),
+                 group = as.factor(Molarity)),
+             alpha = 0.8, size = 1.8, stroke = 0.8,
+             position = position_dodge(width = 15)) +
+  #Semi-functional code for if segments going to 0 need to be different
+  # geom_segment(data = saline2_sum_sum[saline2_sum_sum$Time == 45 &
+  #                                     saline2_sum_sum$Molarity != 0, ],
+  #              aes(x = 0, xend = 45.2+3*(as.numeric(Molarity)-2),
+  #                  y = 100, yend = mean_pctsurv),
+  #              lty = 1, lwd = 2, alpha = 1) +
   scale_y_continuous(breaks = c(100, 10, 1),
                      labels = c("100", "10", "1"),
                      trans="log10") +  
@@ -985,19 +1071,18 @@ ggplot(data = saline2_sum_sum,
   theme(panel.grid = element_blank(),
         axis.title = element_text(size = 18),
         axis.text = element_text(size = 16)) +
-  labs(x = "Duration of Saline Shock (min)",
+  labs(x = "Timepoint (min)",
        y = "Percent Phage Survivors (%)") +
   scale_color_manual(name = "Saline\nConcentration (M)",
                      values = my_cols(6)[2:6]) +
   geom_hline(yintercept = saline2_lim_det_pct, lty = 3, lwd = 1, alpha = 0.5) +
-  #guides(lty = FALSE) + #don't show shape legend
-  #facet_grid(~Date) +
+  guides(shape = FALSE) + #don't show shape legend
   NULL
 dev.off()
 
 saline2_summary$Molarity <- factor(saline2_summary$Molarity,
                                       levels = c(0.17, 0, 0.5, 3, 5))
-tiff("Saline_byduration2_new.tiff", width = 6, height = 4, units = "in", res = 300)
+tiff("Saline_bymolarity2.tiff", width = 6, height = 4, units = "in", res = 300)
 ggplot(data = saline2_summary,
        aes(x = as.factor(Molarity), y = mean_pctsurv, color = as.factor(Time))) +
   geom_point(position = position_dodge(width = 0.5), 
@@ -1019,41 +1104,6 @@ ggplot(data = saline2_summary,
                      values = my_cols(4)[2:4]) +
   NULL
 dev.off()
-
-
-# ggplot(data = saline2_sum_sum,
-#        aes(x = as.factor(Molarity), y = mean_pctsurv, color = as.factor(Time))) +
-#   # geom_line(aes(group = as.factor(Molarity)),
-#   #           position = position_dodge(width = 1)) +
-#   # ungeviz::geom_hpline(width = 0.3,
-#   #                      position = position_dodge2(width = 1, preserve = "single")) +
-#   # geom_segment(aes(x = as.factor(Molarity), xend = as.factor(Molarity),
-#   #                  y = mean_pctsurv, yend = mean_pctsurv)) +
-#   # geom_col(position = position_dodge2(width = .3, preserve = "single"),
-#   #            size = 3, alpha = 0.5) +
-#   scale_y_continuous(breaks = c(100, 10, 1),
-#                      labels = c("100", "10", "1"),
-#                      trans="log10") +  
-#   geom_point(data = saline2_summary,
-#             aes(x = as.factor(Molarity), y = mean_pctsurv,
-#                 color = as.factor(Time)),
-#                 position = position_dodge(width = 1),
-#             alpha = 0.5, size = 2) +
-#   scale_x_discrete(breaks = c("0.17", "0.00", "0.50", "3.00", "5.00")) +
-#   #scale_x_continuous(breaks = c(0, 45, 90)) +
-#   theme_bw() +
-#   theme(panel.grid = element_blank(),
-#         axis.title = element_text(size = 18),
-#         axis.text = element_text(size = 16)) +
-#   labs(x = "Duration of Saline Shock (min)",
-#        y = "Percent Phage Survivors (%)") +
-#   scale_color_manual(name = "Saline\nConcentration (M)",
-#                      values = my_cols(6)[2:6]) +
-#   geom_hline(yintercept = saline2_lim_det_pct, lty = 3, lwd = 1, alpha = 0.5) +
-#   #guides(lty = FALSE) + #don't show shape legend
-#   #facet_grid(~Date) +
-#   NULL
-# dev.off()
 
 #Statistics
 
@@ -1271,25 +1321,26 @@ my_cols <- function(n) {hcl.colors(n, palette = "lajolla")}
 
 #If line segments going to 0 are same as rest of line segments
 # can add pseudo-data to data frame and just plot with geom_line
-# urea2_sum_sum <- rbind(urea2_sum_sum,
-#                        data.frame(Molarity = as.factor(c(1, 2, 3, 4)),
-#                                   Time = c(0, 0, 0, 0),
-#                                   mean_pctsurv = c(100, 100, 100, 100)))
+temp_sum_sum <- rbind(urea2_sum_sum,
+                       data.frame(Molarity = as.factor(c(1, 2, 3, 4)),
+                                  Time = c(0, 0, 0, 0),
+                                  mean_pctsurv = c(100, 100, 100, 100)))
 tiff("Urea_byduration2.tiff", width = 6, height = 4, units = "in", res = 300)
-ggplot(data = urea2_sum_sum,
+ggplot(data = temp_sum_sum,
        aes(x = Time, y = mean_pctsurv, color = as.factor(Molarity))) +
+  geom_line(lwd = 2, alpha = 0.8) +
   geom_point(data = urea2_summary,
              aes(x = as.numeric(Time), y = mean_pctsurv,
                  color = as.factor(Molarity),
                  group = as.factor(Molarity), shape = as.factor(bd)),
              alpha = 0.8, size = 1.8, stroke = 0.8,
              position = position_dodge(width = 15)) +
-  geom_line(lwd = 2, position = position_dodge(width = 15), alpha = 1) +
-  geom_segment(data = urea2_sum_sum[urea2_sum_sum$Time == 45 &
-                                      urea2_sum_sum$Molarity != 0, ],
-               aes(x = 0, xend = 45.2+3*(as.numeric(as.character(Molarity))-2),
-                   y = 100, yend = mean_pctsurv),
-               lty = 1, lwd = 2, alpha = 1) +
+  #Code for if segments going to 0 are different
+  # geom_segment(data = urea2_sum_sum[urea2_sum_sum$Time == 45 &
+  #                                     urea2_sum_sum$Molarity != 0, ],
+  #              aes(x = 0, xend = 45.2+3*(as.numeric(as.character(Molarity))-2),
+  #                  y = 100, yend = mean_pctsurv),
+  #              lty = 1, lwd = 2, alpha = 1) +
   scale_y_continuous(breaks = c(100, 10, 1),
                      labels = c("100", "10", "1"),
                      trans="log10") +  
