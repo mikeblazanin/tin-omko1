@@ -756,8 +756,7 @@ gc_plot1 <- ggplot(data = gc_sum1_forplotting[gc_sum1_forplotting$plot != "- Ctr
                                   gc_sum1_forplotting$plot %in% c("+ Ctrl", "+ Ctrl Shock",
                                                     "0", "5", "90", "180"), ], 
                    aes(x = plot, y = maxpeak_mean)) +
-  geom_point(aes(shape = as.factor(phage_added), color = as.factor(phage_added),
-                 group = phage),
+  geom_point(aes(color = as.factor(phage_added), group = phage),
              size = 3, alpha = 0.8, position = position_dodge(width = 0.2)) +
   # geom_errorbar(position = position_dodge(width = 0.4),
   #               aes(ymax = maxpeak_mean + 1.96*maxpeak_se,
@@ -766,8 +765,8 @@ gc_plot1 <- ggplot(data = gc_sum1_forplotting[gc_sum1_forplotting$plot != "- Ctr
   #                   group = phage, color = as.factor(phage_added))) +
   theme_bw()  +
   labs(x = "Heat Shock Duration (min)", y = "Peak Bacterial Density (OD600)") +
-  scale_shape_manual(name = "Phage\nAdded?", breaks = c(1, 0), values = c(16, 17),
-                     labels = c("Yes", "No")) +
+  # scale_shape_manual(name = "Phage\nAdded?", breaks = c(1, 0), values = c(16, 17),
+  #                    labels = c("Yes", "No")) +
   scale_color_manual(name = "Phage\nAdded?", breaks = c(1, 0), 
                      values = c(my_colr(7)[5], "black"),
                      labels = c("Yes", "No")) +
