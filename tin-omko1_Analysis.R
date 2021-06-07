@@ -734,72 +734,31 @@ for (myplot in unique(gc_sum1_forplotting$plot)) {
 gc_sum1_forplotting$phage_added <- ifelse(gc_sum1_forplotting$phage %in% LETTERS[1:5], 1, 0)
 
 #Plot
+my_colr <- function(n) {hcl.colors(n, palette = "lajolla")}
 gc_plot1 <- ggplot(data = gc_sum1_forplotting[gc_sum1_forplotting$plot != "- Ctrl" &
                                   gc_sum1_forplotting$pfu_inoc %in% c(0, 200) &
                                   gc_sum1_forplotting$plot %in% c("+ Ctrl", "+ Ctrl Shock",
                                                     "0", "5", "90", "180"), ], 
                    aes(x = plot, y = maxpeak_mean)) +
-  geom_point(aes(shape = as.factor(phage_added), group = phage),
-             size = 3, alpha = 0.8, position = position_dodge(width = 0.4)) +
-  geom_errorbar(position = position_dodge(width = 0.4),
-                aes(ymax = maxpeak_mean + 1.96*maxpeak_se,
-                    ymin = maxpeak_mean - 1.96*maxpeak_se,
-                    width = .7*error_bar_n_subset/5,
-                    group = phage)) +
+  geom_point(aes(shape = as.factor(phage_added), color = as.factor(phage_added),
+                 group = phage),
+             size = 3, alpha = 0.8, position = position_dodge(width = 0.2)) +
+  # geom_errorbar(position = position_dodge(width = 0.4),
+  #               aes(ymax = maxpeak_mean + 1.96*maxpeak_se,
+  #                   ymin = maxpeak_mean - 1.96*maxpeak_se,
+  #                   width = .7*error_bar_n_subset/5,
+  #                   group = phage, color = as.factor(phage_added))) +
   theme_bw()  +
   ylim(NA, 1.85) +
-  labs(x = "70°C Heat Shock Duration (min)", y = "Peak Bacterial Density (OD600)") +
+  labs(x = "Heat Shock Duration (min)", y = "Peak Bacterial Density (OD600)") +
   scale_shape_manual(name = "Phage\nAdded?", breaks = c(1, 0), values = c(16, 17),
+                     labels = c("Yes", "No")) +
+  scale_color_manual(name = "Phage\nAdded?", breaks = c(1, 0), 
+                     values = c(my_colr(7)[5], "black"),
                      labels = c("Yes", "No")) +
   geom_hline(yintercept = gc_sum1_forplotting$maxpeak_mean[gc_sum1_forplotting$plot == "- Ctrl"],
              lty = 3, lwd = 1.15) +
-  # scale_x_discrete(labels = c("+ Ctrl", "+ Ctrl\nShock", "0", "5", 
-  #                             "90", "180", "270")) +
-  theme(panel.grid = element_blank()) +
-  #  theme(axis.text.x = element_text(angle = 30, size = 12, hjust = 1)) +
-  # geom_text(data = gc1_groups,
-  #           aes(x = plot, y = height + 0.3, label = statgroup)) +
-  # geom_signif(comparisons = list(c("+ Ctrl", "0")),
-  #             tip_length = 0.01, y_position = 1.7,
-  #             annotation = ifelse(max(curve1_coefs[1:5, "Adj p"]) < 0.001,
-  #                                 "p<0.001",
-  #                                 paste("p<", max(curve1_coefs[1:5, "Adj p"]),
-  #                                       sep = ""))) +
-  # geom_signif(comparisons = list(c("+ Ctrl Shock", "0")),
-  #             tip_length = 0.01, y_position = 1.5,
-  #             annotation = ifelse(max(curve1_coefs[1:5, "Adj p"]) < 0.001,
-  #                                 "p<0.001",
-  #                                 paste("p<", max(curve1_coefs[1:5, "Adj p"]),
-  #                                       sep = ""))) +
-  NULL
-
-tiff("gc_maxes.tiff", width = 6, height = 4, units = "in", res = 300)
-gc_plot1
-dev.off()
-
-#Plot with color & shape information retained
-my_cols <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2",
-             "#000000")
-gc_plot1 <- ggplot(data = gc_sum1_forplotting[gc_sum1_forplotting$plot != "- Ctrl" &
-                                gc_sum1_forplotting$pfu_inoc %in% c(0, 200),], 
-                   aes(x = plot, y = maxpeak_mean)) +
-  geom_point(position = position_dodge(width = .4), size = 3,
-             aes(color = phage, fill = phage, shape = phage)) +
-  geom_errorbar(position = position_dodge(width = .4),
-                aes(ymax = maxpeak_mean + 1.96*maxpeak_se_plot,
-                    ymin = maxpeak_mean - 1.96*maxpeak_se_plot,
-                    color = phage,
-                    width = .7*error_bar_n_subset/5)) +
-  theme_bw()  +
-  ylim(NA, 1.85) +
-  labs(x = "70°C Heat Shock Duration (min)", y = "Peak Bacterial Density (OD600)") +
-  scale_color_manual(name = "Phage Stock", values = my_cols) +
-  scale_fill_manual(name = "Phage Stock", values = my_cols) +
-  scale_shape_manual(name = "Phage Stock",
-                     values = c(21:25, 4)) +
-  geom_hline(yintercept = gc_sum1_forplotting$maxpeak_mean[gc_sum1_forplotting$plot == "- Ctrl"],
-             lty = 3, lwd = 1.15) +
-  scale_x_discrete(labels = c("+ Ctrl", "+ Ctrl\nShock", "0", "5", 
+  scale_x_discrete(labels = c("+ Ctrl", "+ Ctrl\nShock", "0", "5",
                               "90", "180", "270")) +
   theme(panel.grid = element_blank()) +
   #  theme(axis.text.x = element_text(angle = 30, size = 12, hjust = 1)) +
@@ -818,18 +777,22 @@ gc_plot1 <- ggplot(data = gc_sum1_forplotting[gc_sum1_forplotting$plot != "- Ctr
                                   paste("p<", max(curve1_coefs[1:5, "Adj p"]),
                                         sep = ""))) +
   NULL
+
+tiff("gc_maxes.tiff", width = 6, height = 4, units = "in", res = 300)
 gc_plot1
+dev.off()
 
 
 
-ggsave(filename = "gc_maxes.tiff", width = 8, height = 5, units = "in")
+#Plot *all* the summarized data w/ stock information
+gc_sum1_forplotting2 <- gc_sum1_forplotting
+gc_sum1_forplotting2$pfu_inoc <- factor(gc_sum1_forplotting2$pfu_inoc,
+                                  levels = c("0, 0", levels(gc_sum1_forplotting2$pfu_inoc)))
+gc_sum1_forplotting2$pfu_inoc[gc_sum1_forplotting2$plot == "- Ctrl"] <- "0, 0"
 
-#Plot all the summarized data
-plot1_sum_temp <- plot1
-plot1_sum_temp$pfu_inoc <- factor(plot1_sum_temp$pfu_inoc,
-                                  levels = c("0, 0", levels(plot1_sum_temp$pfu_inoc)))
-plot1_sum_temp$pfu_inoc[plot1_sum_temp$plot == "- Ctrl"] <- "0, 0"
-gc_plot1_alldata <- ggplot(data = plot1_sum_temp, 
+my_cols <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2",
+             "#000000")
+gc_plot1_alldata <- ggplot(data = gc_sum1_forplotting2, 
                    aes(x = plot, y = maxpeak_mean, color = phage,
                        shape = pfu_inoc)) +
   geom_point(position = position_dodge(width = .4), size = 3) +
@@ -838,7 +801,8 @@ gc_plot1_alldata <- ggplot(data = plot1_sum_temp,
                     ymin = maxpeak_mean - 1.96*maxpeak_se,
                     width = .7*error_bar_n_all/5)) +
   theme_bw()  +
-  theme(panel.grid = element_blank()) +
+  theme(panel.grid = element_blank(),
+        legend.title = element_text(size = 10)) +
   labs(x = "70°C Heat Shock Duration (min)", y = "Peak Bacterial Density (OD600)") +
   scale_color_manual(name = "Phage Stock", values = my_cols) +
   scale_fill_manual(name = "Phage Stock", values = my_cols) +
@@ -852,9 +816,13 @@ gc_plot1_alldata <- ggplot(data = plot1_sum_temp,
   scale_x_discrete(labels = c("+ Ctrl", "+ Ctrl\nShock", "0", "5", 
                               "90", "180", "270", "360", "- Ctrl")) +
   guides(color = guide_legend(order = 1),
-         shape = guide_legend(order = 2))
+         shape = guide_legend(order = 2)) +
+  NULL
+
+tiff("gc_maxes_alldata.tiff", width = 6, height = 4, units = "in", res = 300)
 gc_plot1_alldata
-ggsave(filename = "gc_maxes_alldata.tiff", width = 8, height = 5, units = "in")
+dev.off()
+
 
 #Combined Temperature Figure ####
 
