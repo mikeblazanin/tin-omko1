@@ -319,14 +319,17 @@ temprdur_plot
 dev.off()
 
 #Plot with Stock information maintained
+tiff("temp_duration_surv_wstocks.tiff", width = 6, height = 4, units = "in", res = 300)
 ggplot(data = temprdur_sum, 
                         aes(x = Duration.of.shock..m., y = pct_mean)) +
-  geom_point(size = 1.8, alpha = 0.8,
+  geom_point(size = 2.5, alpha = 0.8,
              aes(color = Sample, shape = Sample, fill = Sample)) + 
-  geom_line(data = temprdur_sum_sum) +
+  geom_line(aes(color = Sample)) +
+  geom_line(data = temprdur_sum_sum, lwd = 2, alpha = 0.5) +
   scale_y_continuous(breaks = c(100, 10, 1, 0.1, 0.01, 0.001, 0.0001, 0.00001),
-                     labels = c("100", "10", "1", "0.1", "0.01", "0.001",
-                                "0.0001", "0.00001"),
+                     labels = c("100", "10", "1", parse(text = "10^-1"),
+                                parse(text = "10^-2"), parse(text = "10^-3"),
+                                parse(text = "10^-4"), parse(text = "10^-5")),
                      trans="log10") +
   scale_fill_manual(name = "Phage Stock", values = my_cols) +
   scale_color_manual(name = "Phage Stock", values = my_cols) +
@@ -334,10 +337,10 @@ ggplot(data = temprdur_sum,
   theme_bw() +
   theme(panel.grid = element_blank()) +
   labs(x = "70°C Heat Shock Duration (min)", y = "Percent Survival (%)") +
-  geom_hline(yintercept = 100, lty = 2, lwd = 1.15) +
+  #geom_hline(yintercept = 100, lty = 2, lwd = 1.15) +
   geom_hline(yintercept = max(temprdur_limit_detec), lty = 3, lwd = 1.15) +
   NULL
-
+dev.off()
 
 #Statistics
 colnames(temprdur_sum)[2] <- "Duration"
@@ -762,7 +765,6 @@ gc_plot1 <- ggplot(data = gc_sum1_forplotting[gc_sum1_forplotting$plot != "- Ctr
   #                   width = .7*error_bar_n_subset/5,
   #                   group = phage, color = as.factor(phage_added))) +
   theme_bw()  +
-  ylim(NA, 1.85) +
   labs(x = "Heat Shock Duration (min)", y = "Peak Bacterial Density (OD600)") +
   scale_shape_manual(name = "Phage\nAdded?", breaks = c(1, 0), values = c(16, 17),
                      labels = c("Yes", "No")) +
@@ -777,18 +779,19 @@ gc_plot1 <- ggplot(data = gc_sum1_forplotting[gc_sum1_forplotting$plot != "- Ctr
   #  theme(axis.text.x = element_text(angle = 30, size = 12, hjust = 1)) +
   geom_text(data = gc1_groups,
             aes(x = plot, y = height + 0.3, label = statgroup)) +
-  geom_signif(comparisons = list(c("+ Ctrl", "0")),
-              tip_length = 0.01, y_position = 1.7,
-              annotation = ifelse(max(curve1_coefs[1:5, "Adj p"]) < 0.001,
-                                  "p<0.001",
-                                  paste("p<", max(curve1_coefs[1:5, "Adj p"]),
-                                        sep = ""))) +
-  geom_signif(comparisons = list(c("+ Ctrl Shock", "0")),
-              tip_length = 0.01, y_position = 1.5,
-              annotation = ifelse(max(curve1_coefs[1:5, "Adj p"]) < 0.001,
-                                  "p<0.001",
-                                  paste("p<", max(curve1_coefs[1:5, "Adj p"]),
-                                        sep = ""))) +
+  #ylim(NA, 1.85) +
+  # geom_signif(comparisons = list(c("+ Ctrl", "0")),
+  #             tip_length = 0.01, y_position = 1.7,
+  #             annotation = ifelse(max(curve1_coefs[1:5, "Adj p"]) < 0.001,
+  #                                 "p<0.001",
+  #                                 paste("p<", max(curve1_coefs[1:5, "Adj p"]),
+  #                                       sep = ""))) +
+  # geom_signif(comparisons = list(c("+ Ctrl Shock", "0")),
+  #             tip_length = 0.01, y_position = 1.5,
+  #             annotation = ifelse(max(curve1_coefs[1:5, "Adj p"]) < 0.001,
+  #                                 "p<0.001",
+  #                                 paste("p<", max(curve1_coefs[1:5, "Adj p"]),
+  #                                       sep = ""))) +
   NULL
 
 tiff("gc_maxes.tiff", width = 6, height = 4, units = "in", res = 300)
@@ -814,7 +817,10 @@ gc_plot1_alldata <- ggplot(data = gc_sum1_forplotting2,
                     width = .7*error_bar_n_all/5)) +
   theme_bw()  +
   theme(panel.grid = element_blank(),
-        legend.title = element_text(size = 10)) +
+        legend.title = element_text(size = 10),
+        axis.title = element_text(size = 14),
+        axis.text = element_text(size = 10),
+        plot.margin = unit(c(0.2, 0.1, 0.1, 0.1), units = "in")) +
   labs(x = "70°C Heat Shock Duration (min)", y = "Peak Bacterial Density (OD600)") +
   scale_color_manual(name = "Phage Stock", values = my_cols) +
   scale_fill_manual(name = "Phage Stock", values = my_cols) +
