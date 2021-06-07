@@ -217,7 +217,7 @@ tempr_plot <- ggplot(data = tempr_sum[as.character(tempr_sum$Temp) < 80,],
                      labels = c("100", "10", "1"),
                      trans="log10") +
   labs(x = "Timepoint (min)",
-       y = "Percent Phage Survivors (%)") +
+       y = "Percent Phage\nSurvivors (%)") +
   theme_bw() +
   theme(panel.grid = element_blank(),
         axis.title = element_text(size = 18),
@@ -293,20 +293,24 @@ my_cols <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2",
 
 #Make plot
 my_colr <- function(n) {hcl.colors(n, palette = "lajolla")}
-temprdur_plot <- ggplot(data = temprdur_sum, 
-                        aes(x = Duration.of.shock..m., y = pct_mean)) +
-  geom_point(alpha = 0.8, size = 1.8, stroke = 0.8, color = my_colr(7)[5]) + 
-  geom_line(data = temprdur_sum_sum, lwd = 2, alpha = 0.8, color = my_colr(7)[5]) +
+temprdur_plot <- ggplot(data = cbind(temprdur_sum, data.frame(Temperature = 70)), 
+                        aes(x = Duration.of.shock..m., y = pct_mean,
+                            color = as.factor(Temperature))) +
+  geom_point(alpha = 0.8, size = 1.8, stroke = 0.8) + 
+  geom_line(data = cbind(temprdur_sum_sum, data.frame(Temperature = 70)), 
+            lwd = 2, alpha = 0.8) +
   scale_y_continuous(breaks = c(100, 10, 1, 0.1, 0.01, 0.001, 0.0001, 0.00001),
-                     labels = c("100", "10", "1", "0.1", "0.01", "0.001",
-                                "0.0001", "0.00001"),
+                     labels = c("100", "10", "1", parse(text = "10^-1"),
+                                parse(text = "10^-2"), parse(text = "10^-3"),
+                                parse(text = "10^-4"), parse(text = "10^-5")),
                      trans="log10") +
   scale_x_continuous(breaks = c(0, 90, 180, 270, 360)) +
+  scale_color_manual(name = "Temperature (°C)", values = my_colr(7)[5]) +
   theme_bw() +
   theme(panel.grid = element_blank(),
         axis.title = element_text(size = 18),
         axis.text = element_text(size = 16)) +  
-  labs(x = "Timepoint (min)", y = "Percent Phage Survivors (%)") +
+  labs(x = "Timepoint (min)", y = "Percent Phage\nSurvivors (%)") +
   geom_hline(yintercept = temprdur_limit_detec, lty = 3, lwd = 1.15) +
   NULL
 
@@ -783,7 +787,6 @@ gc_plot1
 dev.off()
 
 
-
 #Plot *all* the summarized data w/ stock information
 gc_sum1_forplotting2 <- gc_sum1_forplotting
 gc_sum1_forplotting2$pfu_inoc <- factor(gc_sum1_forplotting2$pfu_inoc,
@@ -831,9 +834,15 @@ tempr_plot <- tempr_plot + theme(plot.margin = unit(c(0.1, 0.05, 0.15, 0.05), "i
 temprdur_plot <- temprdur_plot + theme(plot.margin = unit(c(0.15, 0.05, 0.2, 0.05), "in"))
 gc_plot1 <- gc_plot1 + theme(plot.margin = unit(c(0.2, 0.05, 0.2, 0.05), "in"))
 
-comb_temp_plot <- cowplot::plot_grid(tempr_plot, temprdur_plot, gc_plot1,
+comb_temp_plot <- cowplot::plot_grid(tempr_plot +
+                                       theme(axis.title = element_text(size = 12),
+                                             axis.text = element_text(size = 11)), 
+                                     temprdur_plot +
+                                       theme(axis.title = element_text(size = 12),
+                                             axis.text = element_text(size = 11)), 
+                                     gc_plot1,
                    ncol = 1, labels = c("A", "B", "C"),
-                   align = "v", label_y = c(1, 1, 1.1))
+                   align = "v", axis = "lr", label_y = c(1, 1, 1.1))
 
 cowplot::save_plot("combined_temp.tiff", comb_temp_plot,
                    base_height = 8, base_width = 5)
@@ -925,7 +934,7 @@ ggplot(data = saline_summary, aes(x = Duration.of.shock..m.,
         axis.title = element_text(size = 18),
         axis.text = element_text(size = 16)) +
   labs(x = "Duration of Salt Shock (min)", 
-       y = "Percent Phage Survivors (%)") +
+       y = "Percent Phage\nSurvivors (%)") +
   scale_color_manual(name = "Saline\nConcentration (M)",
                        values = my_cols(8)) +
   scale_fill_manual(name = "Saline\nConcentration (M)",
@@ -950,7 +959,7 @@ ggplot(data = saline_summary, aes(x = Duration.of.shock..m.,
         axis.title = element_text(size = 18),
         axis.text = element_text(size = 16)) +
   labs(x = "Duration of Salt Shock (min)", 
-       y = "Percent Phage Survivors (%)") +
+       y = "Percent Phage\nSurvivors (%)") +
   scale_color_manual(name = "Saline\nConcentration (M)",
                      values = my_cols(8)) +
   scale_fill_manual(name = "Saline\nConcentration (M)",
@@ -1032,7 +1041,7 @@ ggplot(data = temp_sum_sum,
         axis.title = element_text(size = 18),
         axis.text = element_text(size = 16)) +
   labs(x = "Timepoint (min)",
-       y = "Percent Phage Survivors (%)") +
+       y = "Percent Phage\nSurvivors (%)") +
   scale_color_manual(name = "Saline\nConcentration (M)",
                      values = my_cols(6)[2:6]) +
   geom_hline(yintercept = saline2_lim_det_pct, lty = 3, lwd = 1, alpha = 0.5) +
@@ -1059,7 +1068,7 @@ ggplot(data = saline2_summary,
         axis.title = element_text(size = 18),
         axis.text = element_text(size = 16)) +
   labs(x = "Saline Concentration (M)",
-       y = "Percent Phage Survivors (%)") +
+       y = "Percent Phage\nSurvivors (%)") +
   scale_color_manual(name = "Timepoint\n(min)",
                      values = my_cols(4)[2:4]) +
   NULL
@@ -1180,7 +1189,7 @@ ggplot(data = urea_summary[as.numeric(as.character(
         axis.title = element_text(size = 18),
         axis.text = element_text(size = 16)) +
   labs(x = "Duration of Urea Shock (min)", 
-       y = "Percent Phage Survivors (%)") +
+       y = "Percent Phage\nSurvivors (%)") +
   geom_hline(yintercept = 100, lty = 2, lwd = 1.15) + 
   geom_hline(yintercept = urea_limit_detection, lty = 3, lwd = 1.15) +
   scale_color_manual(name = "Urea\nConcentration (M)",
@@ -1310,7 +1319,7 @@ ggplot(data = temp_sum_sum,
         axis.title = element_text(size = 18),
         axis.text = element_text(size = 16)) +
   labs(x = "Timepoint (min)",
-       y = "Percent Phage Survivors (%)") +
+       y = "Percent Phage\nSurvivors (%)") +
   scale_color_manual(name = "Urea\nConcentration (M)",
                      values = my_cols(6)[2:6]) +
   scale_shape_manual(breaks = c(0, 1), values = c(16, 8)) +
@@ -1332,7 +1341,7 @@ ggplot(data = urea2_summary,
         axis.title = element_text(size = 18),
         axis.text = element_text(size = 16)) +
   labs(x = "Duration of Urea Shock (min)",
-       y = "Percent Phage Survivors (%)") +
+       y = "Percent Phage\nSurvivors (%)") +
   scale_color_manual(name = "Urea\nConcentration (M)",
                      values = my_cols(6)[2:6]) +
   geom_hline(yintercept = urea_detec_lim2, lty = 3, lwd = 1, alpha = 0.5) +
@@ -1360,7 +1369,7 @@ ggplot(data = urea2_summary,
         axis.title = element_text(size = 18),
         axis.text = element_text(size = 16)) +
   labs(x = "Urea Concentration (M)",
-       y = "Percent Phage Survivors (%)") +
+       y = "Percent Phage\nSurvivors (%)") +
   scale_color_manual(name = "Timepoint\n(min)",
                      values = my_cols(4)[2:4]) +
   scale_shape_manual(breaks = c(0, 1), values = c(16, 8)) +
