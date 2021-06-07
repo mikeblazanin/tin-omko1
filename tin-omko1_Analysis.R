@@ -295,8 +295,8 @@ my_cols <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2",
 my_colr <- function(n) {hcl.colors(n, palette = "lajolla")}
 temprdur_plot <- ggplot(data = temprdur_sum, 
                         aes(x = Duration.of.shock..m., y = pct_mean)) +
-  geom_point(alpha = 0.8, size = 1.8, stroke = 0.8, color = my_colr(7)[6]) + 
-  geom_line(data = temprdur_sum_sum, lwd = 2, alpha = 0.8, color = my_colr(7)[6]) +
+  geom_point(alpha = 0.8, size = 1.8, stroke = 0.8, color = my_colr(7)[5]) + 
+  geom_line(data = temprdur_sum_sum, lwd = 2, alpha = 0.8, color = my_colr(7)[5]) +
   scale_y_continuous(breaks = c(100, 10, 1, 0.1, 0.01, 0.001, 0.0001, 0.00001),
                      labels = c("100", "10", "1", "0.1", "0.01", "0.001",
                                 "0.0001", "0.00001"),
@@ -305,7 +305,8 @@ temprdur_plot <- ggplot(data = temprdur_sum,
   theme_bw() +
   theme(panel.grid = element_blank(),
         axis.title = element_text(size = 18),
-        axis.text = element_text(size = 16)) +  labs(x = "Timepoint (min)", y = "Percent Phage Survivors (%)") +
+        axis.text = element_text(size = 16)) +  
+  labs(x = "Timepoint (min)", y = "Percent Phage Survivors (%)") +
   geom_hline(yintercept = temprdur_limit_detec, lty = 3, lwd = 1.15) +
   NULL
 
