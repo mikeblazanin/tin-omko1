@@ -682,7 +682,7 @@ for (i in 1:nrow(gc1_groups)) {
 mynames <- c("A" = "R3", "B" = "S3", "C" = "S8", "D" = "S11", "E" = "S16")
 gc_data1$phage <- names(mynames)[match(gc_data1$phage, mynames)]
 
-#Make plot of all non-control curves
+#Make plot of all non-control curves (for supplement)
 my_cols <- function(n) {hcl.colors(n, palette = "lajolla")}
 png("All_curves.png", width = 7, height = 5, units = "in",
     res = 300)
@@ -710,71 +710,66 @@ ggplot(data = gc_data1[
 dev.off()
 
 #Make plot with summarized data
-plot1 <- sum_data1
-plot1$pfu_inoc <- as.factor(plot1$pfu_inoc)
-plot1$phage[is.na(plot1$phage)] <- "NA"
-
-#supress error bars when se < 0.008
-plot1$maxpeak_se_plot <- plot1$maxpeak_se
-# plot1$maxpeak_se_plot[plot1$maxpeak_se < 0.008] <- 0.0001
-# 
-# plot1$error_bar_n_all[plot1$maxpeak_se < 0.008] <- 0.001
-# plot1$error_bar_n_subset[plot1$maxpeak_se < 0.008] <- 0.001
+gc_sum1_forplotting <- sum_data1
+gc_sum1_forplotting$pfu_inoc <- as.factor(gc_sum1_forplotting$pfu_inoc)
+gc_sum1_forplotting$phage[is.na(gc_sum1_forplotting$phage)] <- "NA"
 
 #Run through and calculate number of groups in each "plot" x val
 # so we can adjust the error bars to the right width
-plot1$error_bar_n_all <- 0
-plot1$error_bar_n_subset <- 0
-for (myplot in unique(plot1$plot)) {
-  plot1$error_bar_n_all[which(plot1$plot == myplot)] <-
-    nrow(plot1[which(plot1$plot == myplot), ])
-  plot1$error_bar_n_subset[which(plot1$plot != "- Ctrl" &
-                              plot1$pfu_inoc %in% c(0, 200) & 
-                              plot1$plot == myplot)] <-
-    nrow(plot1[which(plot1$plot != "- Ctrl" &
-                       plot1$pfu_inoc %in% c(0, 200) & 
-                       plot1$plot == myplot), ])
+gc_sum1_forplotting$error_bar_n_all <- 0
+gc_sum1_forplotting$error_bar_n_subset <- 0
+for (myplot in unique(gc_sum1_forplotting$plot)) {
+  gc_sum1_forplotting$error_bar_n_all[which(gc_sum1_forplotting$plot == myplot)] <-
+    nrow(gc_sum1_forplotting[which(gc_sum1_forplotting$plot == myplot), ])
+  gc_sum1_forplotting$error_bar_n_subset[which(gc_sum1_forplotting$plot != "- Ctrl" &
+                              gc_sum1_forplotting$pfu_inoc %in% c(0, 200) & 
+                              gc_sum1_forplotting$plot == myplot)] <-
+    nrow(gc_sum1_forplotting[which(gc_sum1_forplotting$plot != "- Ctrl" &
+                       gc_sum1_forplotting$pfu_inoc %in% c(0, 200) & 
+                       gc_sum1_forplotting$plot == myplot), ])
 }
 
 #Make dummy variable for whether phage were added
-plot1$phage_added <- ifelse(plot1$phage %in% LETTERS[1:5], 1, 0)
+gc_sum1_forplotting$phage_added <- ifelse(gc_sum1_forplotting$phage %in% LETTERS[1:5], 1, 0)
 
-gc_plot1 <- ggplot(data = plot1[plot1$plot != "- Ctrl" &
-                                  plot1$pfu_inoc %in% c(0, 200) &
-                                  plot1$plot %in% c("+ Ctrl", "+ Ctrl Shock",
+#Plot
+gc_plot1 <- ggplot(data = gc_sum1_forplotting[gc_sum1_forplotting$plot != "- Ctrl" &
+                                  gc_sum1_forplotting$pfu_inoc %in% c(0, 200) &
+                                  gc_sum1_forplotting$plot %in% c("+ Ctrl", "+ Ctrl Shock",
                                                     "0", "5", "90", "180"), ], 
                    aes(x = plot, y = maxpeak_mean)) +
-  geom_point(aes(shape = as.factor(phage_added)),
-             size = 3, alpha = 0.8) +
-  geom_errorbar(position = position_dodge(width = .4),
-                aes(ymax = maxpeak_mean + 1.96*maxpeak_se_plot,
-                    ymin = maxpeak_mean - 1.96*maxpeak_se_plot,
-                    width = .7/5)) +
+  geom_point(aes(shape = as.factor(phage_added), group = phage),
+             size = 3, alpha = 0.8, position = position_dodge(width = 0.4)) +
+  geom_errorbar(position = position_dodge(width = 0.4),
+                aes(ymax = maxpeak_mean + 1.96*maxpeak_se,
+                    ymin = maxpeak_mean - 1.96*maxpeak_se,
+                    width = .7*error_bar_n_subset/5,
+                    group = phage)) +
   theme_bw()  +
   ylim(NA, 1.85) +
   labs(x = "70°C Heat Shock Duration (min)", y = "Peak Bacterial Density (OD600)") +
   scale_shape_manual(name = "Phage\nAdded?", breaks = c(1, 0), values = c(16, 17),
                      labels = c("Yes", "No")) +
-  geom_hline(yintercept = plot1$maxpeak_mean[plot1$plot == "- Ctrl"],
+  geom_hline(yintercept = gc_sum1_forplotting$maxpeak_mean[gc_sum1_forplotting$plot == "- Ctrl"],
              lty = 3, lwd = 1.15) +
   # scale_x_discrete(labels = c("+ Ctrl", "+ Ctrl\nShock", "0", "5", 
   #                             "90", "180", "270")) +
   theme(panel.grid = element_blank()) +
   #  theme(axis.text.x = element_text(angle = 30, size = 12, hjust = 1)) +
-  geom_text(data = gc1_groups,
-            aes(x = plot, y = height + 0.3, label = statgroup)) +
-  geom_signif(comparisons = list(c("+ Ctrl", "0")),
-              tip_length = 0.01, y_position = 1.7,
-              annotation = ifelse(max(curve1_coefs[1:5, "Adj p"]) < 0.001,
-                                  "p<0.001",
-                                  paste("p<", max(curve1_coefs[1:5, "Adj p"]),
-                                        sep = ""))) +
-  geom_signif(comparisons = list(c("+ Ctrl Shock", "0")),
-              tip_length = 0.01, y_position = 1.5,
-              annotation = ifelse(max(curve1_coefs[1:5, "Adj p"]) < 0.001,
-                                  "p<0.001",
-                                  paste("p<", max(curve1_coefs[1:5, "Adj p"]),
-                                        sep = ""))) +
+  # geom_text(data = gc1_groups,
+  #           aes(x = plot, y = height + 0.3, label = statgroup)) +
+  # geom_signif(comparisons = list(c("+ Ctrl", "0")),
+  #             tip_length = 0.01, y_position = 1.7,
+  #             annotation = ifelse(max(curve1_coefs[1:5, "Adj p"]) < 0.001,
+  #                                 "p<0.001",
+  #                                 paste("p<", max(curve1_coefs[1:5, "Adj p"]),
+  #                                       sep = ""))) +
+  # geom_signif(comparisons = list(c("+ Ctrl Shock", "0")),
+  #             tip_length = 0.01, y_position = 1.5,
+  #             annotation = ifelse(max(curve1_coefs[1:5, "Adj p"]) < 0.001,
+  #                                 "p<0.001",
+  #                                 paste("p<", max(curve1_coefs[1:5, "Adj p"]),
+  #                                       sep = ""))) +
   NULL
 
 tiff("gc_maxes.tiff", width = 6, height = 4, units = "in", res = 300)
@@ -784,8 +779,8 @@ dev.off()
 #Plot with color & shape information retained
 my_cols <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2",
              "#000000")
-gc_plot1 <- ggplot(data = plot1[plot1$plot != "- Ctrl" &
-                                plot1$pfu_inoc %in% c(0, 200),], 
+gc_plot1 <- ggplot(data = gc_sum1_forplotting[gc_sum1_forplotting$plot != "- Ctrl" &
+                                gc_sum1_forplotting$pfu_inoc %in% c(0, 200),], 
                    aes(x = plot, y = maxpeak_mean)) +
   geom_point(position = position_dodge(width = .4), size = 3,
              aes(color = phage, fill = phage, shape = phage)) +
@@ -801,7 +796,7 @@ gc_plot1 <- ggplot(data = plot1[plot1$plot != "- Ctrl" &
   scale_fill_manual(name = "Phage Stock", values = my_cols) +
   scale_shape_manual(name = "Phage Stock",
                      values = c(21:25, 4)) +
-  geom_hline(yintercept = plot1$maxpeak_mean[plot1$plot == "- Ctrl"],
+  geom_hline(yintercept = gc_sum1_forplotting$maxpeak_mean[gc_sum1_forplotting$plot == "- Ctrl"],
              lty = 3, lwd = 1.15) +
   scale_x_discrete(labels = c("+ Ctrl", "+ Ctrl\nShock", "0", "5", 
                               "90", "180", "270")) +
