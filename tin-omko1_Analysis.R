@@ -600,13 +600,24 @@ sum_data1 <- summarize(out_data1,
 
 ##Statistics ----
 
-#Contrasts of interest:
-# Each of the phage stocks at 0 w/ +Ctrl and +Shock (10x)
-# +Ctrl with +Shock
-# 0, 5, 90, 180, 270 - all pairwise among each other (10x), using summarized
-#   stocks values
+#Create df for paired contrast between Ctrl's and 0 min
+gc1_stats <- out_data1[out_data1$plot %in% 
+                         c("+ Ctrl", "+ Ctrl Shock", 0, 5, 90, 180) &
+                         out_data1$pfu_inoc %in% c(0, 200), ]
+gc1_stats$pfu_inoc <- relevel(as.factor(gc1_stats$pfu_inoc), ref = "200")
+gc1_stats$plot <- relevel(as.factor(gc1_stats$plot), ref = "0")
+gc1_stats$phage[is.na(gc1_stats$phage)] <- "None"
 
-#Each phage stock at 0 w/ +Ctrl and +Shock
+#Run general anova with indiv well data
+curve1_model <- lm(max~plot + phage + phage:plot,
+                   data = gc1_stats)
+#DO NOT USE THIS ANOVA
+#anova(curve1_model)
+#summary(curve1_model)
+
+#Run contrast of each phage stock at 0 min w/ +Ctrl and +Shock
+# (using unsummarized wells)
+
 # with +Ctrl
 curve1_coefs <- data.frame("Estimate" = vector(length = 10),
                                 "Std.error" = vector(length = 10),
@@ -633,34 +644,32 @@ for (group1 in c("+ Ctrl", "+ Ctrl Shock")) {
 curve1_coefs <- cbind(curve1_coefs, 
                       "Adj p" = p.adjust(curve1_coefs[, "One.tailed.Pr"], 
                                            method = "bonferroni"))
-print(round(curve1_coefs$Estimate, 2))
-print(round(curve1_coefs$df, 2))
-print(round(curve1_coefs$tvalue, 2))
-print(round(curve1_coefs$`Adj p`, 4))
+print(curve1_coefs)
 
 #+Ctrl with +Shock
 t.test(gc1_stats$max[gc1_stats$plot == "+ Ctrl Shock"],
        gc1_stats$max[gc1_stats$plot == "+ Ctrl"],
        alternative = "two.sided")
 
-#All pairs among 0, 5, 90, 180, 270
+#All pairs among 0, 5, 90, 180
 #First check ANOVA
-gc1_stats_heatsonly <- as.data.frame(
+gc1_stats__sum_heatsonly <- as.data.frame(
   sum_data1[sum_data1$plot %in% c(0, 5, 90, 180) &
               sum_data1$pfu_inoc == 200, ])
-gc1_stats_heatsonly$plot <- relevel(as.factor(gc1_stats_heatsonly$plot), ref = "0")
-curve1_model <- lm(maxpeak_mean~plot, data = gc1_stats_heatsonly)
-anova(curve1_model)
-summary(curve1_model)
+gc1_stats__sum_heatsonly$plot <- relevel(as.factor(gc1_stats__sum_heatsonly$plot), 
+                                         ref = "0")
+curve1_model2 <- lm(maxpeak_mean~plot, data = gc1_stats__sum_heatsonly)
+anova(curve1_model2)
+summary(curve1_model2)
 
 #Save the aov for next steps
-curve1_model_heatshocks <- aov(maxpeak_mean~plot,
-                               data = gc1_stats_heatsonly)
+curve1_model2B <- aov(maxpeak_mean~plot,
+                               data = gc1_stats__sum_heatsonly)
 #just a check before Tukey that treatment is still sig w/ only a subset of the data
-summary(curve1_model_heatshocks)
+summary(curve1_model2B)
 
 #Run Tukey test of all pairs
-gc_heat_tukey <- TukeyHSD(curve1_model_heatshocks,
+gc_heat_tukey <- TukeyHSD(curve1_model2B,
                           which = "plot")
 gc_heat_tukey
 
