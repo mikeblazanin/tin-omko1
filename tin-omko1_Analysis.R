@@ -595,18 +595,6 @@ sum_data1 <- summarize(out_data1,
 
 ##Statistics ----
 
-#ANOVA (with stocks unsummarized)
-gc1_stats <- out_data1[out_data1$plot %in% 
-                     c("+ Ctrl", "+ Ctrl Shock", 0, 5, 90, 180,270, 360) &
-                     out_data1$pfu_inoc %in% c(0, 200), ]
-gc1_stats$pfu_inoc <- relevel(as.factor(gc1_stats$pfu_inoc), ref = "200")
-gc1_stats$plot <- relevel(as.factor(gc1_stats$plot), ref = "0")
-gc1_stats$phage[is.na(gc1_stats$phage)] <- "None"
-curve1_model <- lm(max~plot + phage + phage:plot,
-                   data = gc1_stats)
-anova(curve1_model)
-#summary(curve1_model)
-
 #Contrasts of interest:
 # Each of the phage stocks at 0 w/ +Ctrl and +Shock (10x)
 # +Ctrl with +Shock
@@ -651,8 +639,16 @@ t.test(gc1_stats$max[gc1_stats$plot == "+ Ctrl Shock"],
        alternative = "two.sided")
 
 #All pairs among 0, 5, 90, 180, 270
-gc1_stats_heatsonly <- sum_data1[sum_data1$plot %in% c(0, 5, 90, 180, 270) &
-                               sum_data1$pfu_inoc %in% c(0, 200), ]
+#First check ANOVA
+gc1_stats_heatsonly <- as.data.frame(
+  sum_data1[sum_data1$plot %in% c(0, 5, 90, 180) &
+              sum_data1$pfu_inoc == 200, ])
+gc1_stats_heatsonly$plot <- relevel(as.factor(gc1_stats_heatsonly$plot), ref = "0")
+curve1_model <- lm(maxpeak_mean~plot, data = gc1_stats_heatsonly)
+anova(curve1_model)
+summary(curve1_model)
+
+#Save the aov for next steps
 curve1_model_heatshocks <- aov(maxpeak_mean~plot,
                                data = gc1_stats_heatsonly)
 #just a check before Tukey that treatment is still sig w/ only a subset of the data
@@ -666,9 +662,9 @@ gc_heat_tukey
 #Get the treatment pairs & p-values to assign letters for plotting
 my_split <- unlist(strsplit(rownames(gc_heat_tukey$plot), "-"))
 treat1 <- factor(my_split[seq(from = 1, to = length(my_split), by = 2)],
-                 levels = c("0", "5", "90", "180", "270"))
+                 levels = c("0", "5", "90", "180"))
 treat2 <- factor(my_split[seq(from = 2, to = length(my_split), by = 2)],
-                 levels = c("0", "5", "90", "180", "270"))
+                 levels = c("0", "5", "90", "180"))
 
 #Get letters for plotting
 gc1_groups <- data.frame(plot = levels(treat1),
