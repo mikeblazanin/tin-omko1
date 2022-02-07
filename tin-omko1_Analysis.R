@@ -1420,3 +1420,18 @@ urea2_coeffs
 
 #For degrees of freedom:
 summary(urea2_model_0)
+
+
+##Output files for Dryad ----
+write.csv(tempr, "clean_temperature_data.csv", row.names = FALSE)
+write.csv(temprdur, "clean_temperature_70C_duration_data.csv", row.names = FALSE)
+write.csv(saline_data, "clean_saline_data_supp.csv", row.names = FALSE)
+write.csv(saline_data2, "clean_saline_data.csv", row.names = FALSE)
+write.csv(urea_data, "clean_urea_data_supp.csv", row.names = FALSE)
+write.csv(urea_data2, "clean_urea_data.csv", row.names = FALSE)
+write.csv(gc_data1, "clean_growth_curve_data.csv", row.names = FALSE)
+write.csv(gc_data2, "clean_growth_curve_data_supp1.csv", row.names = FALSE)
+write.csv(gc_data3, "clean_growth_curve_data_supp2.csv", row.names = FALSE)
+write.csv(out_data1, "clean_growth_curve_data_summarized.csv", row.names = FALSE)
+write.csv(out_data2, "clean_growth_curve_data_supp1_summarized.csv", row.names = FALSE)
+write.csv(out_data3, "clean_growth_curve_data_supp2_summarized.csv", row.names = FALSE)
